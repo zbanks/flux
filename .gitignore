@@ -27,11 +27,15 @@
 *.i*86
 *.x86_64
 *.hex
+flux
 
 # Debug files
 *.dSYM/
 
 # Vim swap files
-.swp
-.swn
-.swo
+*.swp
+*.swn
+*.swo
+
+# Dependency Files
+*.d
