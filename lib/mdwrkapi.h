@@ -9,14 +9,28 @@
 #include "czmq.h"
 #include "mdp.h"
 
-//  Opaque class structure
-typedef struct _mdwrk_t mdwrk_t;
+//  Structure of our class
+typedef struct {
+    zsock_t * worker;               //  Socket to broker
+    char *broker;
+    char *service;
+    int verbose;                //  Print activity to stdout
+
+    //  Heartbeat management
+    int64_t heartbeat_at;       //  When to send HEARTBEAT
+    int64_t dead_at;       //  When to send HEARTBEAT
+    int dead;            //  How many attempts left
+    int heartbeat;              //  Heartbeat delay, msecs
+    int reconnect;              //  Reconnect delay, msecs
+
+    int expect_reply;           //  Zero only at start
+    zframe_t *reply_to;         //  Return identity, if any
+} mdwrk_t;
 
 mdwrk_t * mdwrk_new (char *broker,char *service, int verbose);
 void mdwrk_destroy (mdwrk_t **self_p);
-void mdwrk_set_liveness (mdwrk_t *self, int liveness);
-void mdwrk_set_heartbeat (mdwrk_t *self, int heartbeat);
-void mdwrk_set_reconnect (mdwrk_t *self, int reconnect);
-zmsg_t * mdwrk_recv (mdwrk_t *self, zmsg_t **reply_p);
+zmsg_t * mdwrk_event(mdwrk_t * self);
+int mdwrk_send (mdwrk_t *self, zmsg_t **reply_p);
+int mdwrk_check_heartbeat(mdwrk_t * self);
 
 #endif

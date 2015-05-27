@@ -22,9 +22,9 @@ int client_event(){
 }
 
 void client_init(){
-    printf("Client starting on " SERVER_ENDPOINT "...\n");
+    printf("Client starting on localhost:" BROKER_PORT "...\n");
 
-    client = zsock_new_req("@" SERVER_ENDPOINT);
+    client = zsock_new_req("tcp://localhost:" BROKER_PORT);
     if(!client) FAIL("Unable to open ZMQ REQ socket\n");
 }
 

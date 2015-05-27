@@ -1,4 +1,5 @@
 #include "broker/mdbroker.h"
+#include "broker/broker.h"
 #include <czmq.h>
 
 int main (int argc, char *argv [])
@@ -6,7 +7,7 @@ int main (int argc, char *argv [])
     int verbose = (argc > 1 && streq (argv [1], "-v"));
 
     broker_t *self = s_broker_new (verbose);
-    s_broker_bind (self, "tcp://*:5555");
+    s_broker_bind (self, "tcp://*:" BROKER_PORT);
 
     //  Get and process messages forever or until interrupted
     while (true) {
