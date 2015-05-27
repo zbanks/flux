@@ -1,16 +1,17 @@
+#include "core/err.h"
+#include "server/server.h"
+
 #include <czmq.h>
 
-#include "core/err.h"
-#include "core/poller.h"
-#include "server/server.h"
-#include "test/client.h"
+int main(int argc, char ** argv){
+    UNUSED(argc);
+    UNUSED(argv);
 
-#define SOCKS X(server) X(client)
-
-void poller_run(){
-    #define X(s) s,
-    zpoller_t * poller = zpoller_new(SOCKS 0);
-    #undef X
+    server_init(); 
+    while(!server_event());
+    
+    /*
+    zpoller_t * poller = zpoller_new(server);
     if(!poller) FAIL("Unable to set up reader poller\n");
 
     while(1){
@@ -19,15 +20,13 @@ void poller_run(){
             if(zpoller_expired(poller)) continue;
             else break;
         }
-
-        if(0){}
-            #define X(s) else if(which == s){ s ##_event(); }
-            SOCKS
-            #undef X
-        else
-            FAIL("Invalid socket returned from poller\n");
+        if(which != server) FAIL("Invalid socket returned from poller\n");
+        server_event();
     }
 
     zpoller_destroy(&poller);
     if(poller) FAIL("Unable to free poller\n");
+    */
+
+    server_del();
 }

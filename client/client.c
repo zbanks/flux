@@ -1,18 +1,24 @@
+#include "broker/broker.h"
 #include "core/err.h"
 #include "server/server.h"
-#include "test/client.h"
+#include "client/client.h"
 #include <czmq.h>
 
 zsock_t * client;
 
-void client_event(){
+int client_event(){
+    int rc;
     char * string;
-    if(zsock_recv(client, "s", &string)) return;
-    if(!string) FAIL("Error reading string from msg\n");
+    if((rc = zsock_recv(client, "s", &string))) return rc;
+    if(!string){
+        printf("Error reading string from msg\n");
+        return -1;
+    }
 
     printf("Client recieved: '%s'\n", string);
 
     free(string);
+    return 0;
 }
 
 void client_init(){

@@ -7,7 +7,7 @@
 
 extern zsock_t * server;
 
-void server_event();
+int server_event();
 void server_init();
 void server_del();
 

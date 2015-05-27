@@ -1,19 +1,25 @@
 #include "server/server.h"
 #include "core/err.h"
 #include <czmq.h>
+#include "lib/mdwrkapi.h"
 
 zsock_t * server;
 
-void server_event(){
+int server_event(){
     char * string;
-    if(zsock_recv(server, "s", &string)) return;
-    if(!string) FAIL("Server recieved invalid string\n");
+    int rc;
+    if((rc = zsock_recv(server, "s", &string))) return rc;
+    if(!string){
+        printf("Server recieved invalid string\n");
+        return -1;
+    }
 
     printf("Server recieved: '%s'\n", string);
 
-    zsock_send(server, "s", string);
-
+    rc = zsock_send(server, "s", string);
     free(string);
+
+    return rc;
 }
 
 void server_init(){

@@ -1,4 +1,3 @@
-#include <SDL/SDL_timer.h>
 #include <errno.h>
 #include <fcntl.h> 
 #include <linux/serial.h>
@@ -12,7 +11,7 @@
 #include "core/err.h"
 #include "crc.h"
 #include "lux.h"
-#include "output/serial.h"
+#include "serial/serial.h"
 
 int ser;
 static char lux_is_transmitting;
@@ -160,7 +159,7 @@ void lux_hal_enable_rx(){
     lux_is_transmitting = 0;
 #ifndef LUX_WRITE_ONLY
     const int r = TIOCM_RTS;
-    SDL_Delay(1);
+    delay(1);
     ioctl(ser, TIOCMBIS, &r);
 #endif
 }
@@ -170,7 +169,7 @@ void lux_hal_disable_rx(){
     lux_is_transmitting = 1;
     ioctl(ser, TIOCMBIC, &r);
 #ifndef LUX_WRITE_ONLY
-    SDL_Delay(1);
+    delay(1);
 #endif
 }
 
