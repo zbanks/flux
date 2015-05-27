@@ -3,35 +3,28 @@
 #include <czmq.h>
 #include "lib/mdwrkapi.h"
 
-zsock_t * server;
+mdwrk_t * server;
 
 int server_event(){
-    char * string;
-    int rc;
-    if((rc = zsock_recv(server, "s", &string))) return rc;
-    if(!string){
-        printf("Server recieved invalid string\n");
-        return -1;
-    }
+    static zmsg_t * reply = NULL;
 
-    printf("Server recieved: '%s'\n", string);
+    zmsg_t * request =  mdwrk_recv(server, &reply);
+    if(request == NULL) return -1;
 
-    rc = zsock_send(server, "s", string);
-    free(string);
+    reply = request;
 
-    return rc;
+    return 0;
 }
 
 void server_init(){
     printf("Server starting on " SERVER_ENDPOINT "...\n");
-
-    server = zsock_new_rep(">" SERVER_ENDPOINT);
-    if(!server) FAIL("Unable to open ZMQ REP socket\n");
+    server = mdwrk_new("tcp://localhost:5555", "lux", 1);
+    if(!server) FAIL("Unable to open ZMQ worker socket\n");
 }
 
 void server_del(){
-    zsock_destroy(&server);
-    if(server) FAIL("Error destroying reader\n");
+    mdwrk_destroy(&server);
+    if(server) FAIL("Error destroying worker\n");
 
     printf("Server closed.\n");
 }

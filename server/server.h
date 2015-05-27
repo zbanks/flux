@@ -2,10 +2,9 @@
 #define __SERVER_SERVER_H__
 
 #include <czmq.h>
+#include "lib/mdwrkapi.h"
 
-#define SERVER_ENDPOINT "tcp://127.0.0.1:5568"
-
-extern zsock_t * server;
+extern mdwrk_t * server;
 
 int server_event();
 void server_init();
