@@ -28,6 +28,7 @@
 *.x86_64
 *.hex
 flux
+flux-*
 
 # Debug files
 *.dSYM/
