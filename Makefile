@@ -13,24 +13,17 @@ C_SRC_SERVER += $(wildcard lib/lux/src/*.c)
 C_SRC_CLIENT = $(wildcard client/*.c)
 
 C_SRC = $(C_SRC_COMMON) $(C_SRC_BROKER) $(C_SRC_SERVER) $(C_SRC_CLIENT)
-
-C_INC  = $(wildcard core/*.h)
-C_INC += $(wildcard broker/*.h)
-C_INC += $(wildcard serial/*.h)
-C_INC += $(wildcard client/*.h)
-C_INC += $(wildcard server/*.h)
-C_INC += $(wildcard lib/*.h)
-C_INC += $(wildcard lib/lux/inc/*.h)
-
 OBJECTS_COMMON = $(patsubst %.c,%.o,$(C_SRC_COMMON))
 OBJECTS_BROKER = $(patsubst %.c,%.o,$(C_SRC_BROKER))
 OBJECTS_SERVER = $(patsubst %.c,%.o,$(C_SRC_SERVER))
 OBJECTS_CLIENT = $(patsubst %.c,%.o,$(C_SRC_CLIENT))
-OBJECTS_ALL = $(OBJECTS_COMMON) $(OBJECTS_BROKER) $(OBJECTS_SERVER) $(OBJECTS_CLIENT)
+OBJECTS_LIB = $(patsubst %.c,%.o,$(C_SRC_LIB))
+OBJECTS_COMMON += $(OBJECTS_LIB)
+OBJECTS_ALL = $(OBJECTS_COMMON) $(OBJECTS_BROKER) $(OBJECTS_SERVER) $(OBJECTS_CLIENT) 
 DEPS = $(OBJECTS_ALL:.o=.d)
 
-INC  = -I. -Isrc/ -Ilib/lux/inc -Ilib -L/usr/local/lib -L/usr/lib 
-LIB  = -lczmq -lzmq
+INC  = -I. -Isrc/ -Ilib/lux/inc -Ilib -L/usr/local/lib -L/usr/lib -Llibflux
+LIB  = -lczmq -lzmq -lflux
 
 # Assembler, compiler, and linker flags
 PEDANTIC = -Wpedantic
@@ -45,11 +38,14 @@ LFLAGS  = $(CFLAGS)
 
 # Targets
 .PHONY: all
-all: flux-server flux-broker flux-client
+all: libflux flux-server flux-broker flux-client
 
 .PHONY: clean
 clean:
 	-rm -f $(OBJECTS_ALL) $(DEPS) flux-server flux-broker flux-client
+
+.PHONY: libflux
+	$(MAKE) -C libflux
 
 flux-server: $(OBJECTS_COMMON) $(OBJECTS_SERVER)
 	$(CC) $(LFLAGS) -o $@ $^ $(LIB)

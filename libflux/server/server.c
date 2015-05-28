@@ -1,14 +1,25 @@
-#include "broker/broker.h"
-#include "core/err.h"
+#include "lib/err.h"
 #include "lib/mdwrkapi.h"
-#include "server/server.h"
+#include "flux.h"
 #include <czmq.h>
 
-static struct resource resources[N_MAX_RESOURCES];
+struct resource {
+    mdwrk_t * worker;
+    zsock_t * socket;
+    char * name;
+    void * args;
+    int verbose;
+    request_fn_t request;
+};
+
+static resource_t resources[N_MAX_RESOURCES];
 static int n_resources = 0;
 static zpoller_t * poller = NULL;
+static int poll_interval = 500;
 
-#define POLL_INTERVAL 500
+void server_set_poll_interval(int interval){
+    poll_interval = interval;
+}
 
 void server_init(){
     printf("Starting server.\n");
@@ -41,7 +52,7 @@ int server_run(){
 
     if(!poller) server_init();
 
-    zsock_t * which = zpoller_wait(poller, POLL_INTERVAL);
+    zsock_t * which = zpoller_wait(poller, poll_interval);
     if(zpoller_terminated(poller)) return -1;
     if(!zpoller_expired(poller)){
         for(int i = 0; i < n_resources; i++){
@@ -65,11 +76,11 @@ int server_run(){
     return 0; 
 }
 
-struct resource * server_add_resource(char * name, request_fn_t request, void * args, int verbose){
+resource_t * server_add_resource(char * broker, char * name, request_fn_t request, void * args, int verbose){
     if(n_resources == N_MAX_RESOURCES) return NULL;
     if(!name) return NULL;
 
-    struct resource * resource = resources;
+    resource_t * resource = resources;
     while(resource->worker) resource++;
 
     resource->name = name;
@@ -77,7 +88,7 @@ struct resource * server_add_resource(char * name, request_fn_t request, void * 
     resource->args = args;
     resource->request = request;
 
-    resource->worker = mdwrk_new("tcp://localhost:" BROKER_PORT, resource->name, resource->verbose);
+    resource->worker = mdwrk_new(broker, resource->name, resource->verbose);
     // This API might change
     resource->socket = resource->worker->worker; 
 
@@ -88,21 +99,27 @@ struct resource * server_add_resource(char * name, request_fn_t request, void * 
         if(rc){ // Unable to add to poller
             mdwrk_destroy(&resource->worker);
             free(resource->name);
-            memset(resource, 0, sizeof(struct resource));
+            memset(resource, 0, sizeof(resource_t));
             return NULL;
         }
     }
     n_resources++;
 
+    printf("Connected to broker on %s with resource %s\n", broker, name);
+
     return resource;
 }
 
-void server_rm_resource(struct resource * resource){
+void server_rm_resource(resource_t * resource){
     if(!resource->worker) return;
     printf("Destroying resource %s\n", resource->name);
     if(poller && resource->socket) zpoller_remove(poller, resource->socket);
     mdwrk_destroy(&resource->worker);
     if(resource->worker) printf("Unable to destroy worker?\n");
-    memset(resource, 0, sizeof(struct resource));
+    memset(resource, 0, sizeof(resource_t));
     n_resources--;
+}
+
+zsock_t * server_resource_get_socket(resource_t * resource){
+    return resource->socket;
 }

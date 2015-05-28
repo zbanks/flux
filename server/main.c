@@ -1,9 +1,10 @@
-#include "core/err.h"
-#include "server/server.h"
+#include "lib/err.h"
 #include "serial/serial.h"
 
+#include <flux.h>
 #include <czmq.h>
 
+#define BROKER_URL "tcp://localhost:5555"
 #define N_LUX_IDS 4
 
 static int n_lux_ids = N_LUX_IDS;
@@ -12,13 +13,15 @@ static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
 struct device {
     uint32_t id;
     char name[16];
-    struct resource * resource;
+    resource_t * resource;
     int bus;
 };
 
 static struct device devices[N_LUX_IDS] = {{0}};
 
-zmsg_t * lux_request(struct resource * resource, zmsg_t * msg, void * args){
+zmsg_t * lux_request(resource_t * resource, zmsg_t * msg, void * args){
+    UNUSED(resource);
+
     struct device * device = (struct device *) args;
     if(zmsg_size(msg) != 2){
         zmsg_destroy(&msg);
@@ -30,7 +33,7 @@ zmsg_t * lux_request(struct resource * resource, zmsg_t * msg, void * args){
     if(zframe_size(req)) needs_data = *(char *) zframe_data(req);
 
     char * s = zframe_strdup(zmsg_last(msg));
-    printf("Recieved lux %u %08x/%s '%s'\n", needs_data, device->id, resource->name, s);
+    printf("Recieved lux %u %08x/%s '%s'\n", needs_data, device->id, device->name, s);
     free(s);
 
     zmsg_pushmem(msg, "", 0);
@@ -40,7 +43,7 @@ zmsg_t * lux_request(struct resource * resource, zmsg_t * msg, void * args){
 static void enumerate_devices(){
     for(int i = 0; i < n_lux_ids; i++){
         if(devices[i].bus && !devices[i].resource){
-            devices[i].resource = server_add_resource(devices[i].name, &lux_request, (void *) &devices[i], 0);
+            devices[i].resource = server_add_resource(BROKER_URL, devices[i].name, &lux_request, (void *) &devices[i], 0);
         }else if(!devices[i].bus && devices[i].resource){
             server_rm_resource(devices[i].resource);
             devices[i].resource = 0;

@@ -8,7 +8,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "core/err.h"
+#include "lib/err.h"
 #include "crc.h"
 #include "lux.h"
 #include "serial/serial.h"

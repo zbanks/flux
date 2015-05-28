@@ -1,8 +1,10 @@
-#include "core/err.h"
-#include "client/client.h"
-#include "lib/mdcliapi.h"
+#include "lib/err.h"
 
+#include <flux.h>
 #include <czmq.h>
+
+#define BROKER_URL "tcp://localhost:5555"
+static client_t * client;
 
 // Sends `n`@`frame` to address `lid` via the broker
 // If `response` is not null, then the server needs to wait for a Lux response & return the data
@@ -20,7 +22,7 @@ int send_lux(char * lid, char * frame, int n, unsigned char ** response){
     zmsg_addmem(lux_msg, frame, n);
 
     // Send the data & get a response
-    zmsg_t * lux_reply_msg = mdcli_send(client, lid, &lux_msg);
+    zmsg_t * lux_reply_msg = client_send(client, lid, &lux_msg);
 
     // Parse response
     int rc;
@@ -59,12 +61,12 @@ int main(int argc, char ** argv){
     UNUSED(argc);
     UNUSED(argv);
 
-    client_init(0); 
+    client = client_init(BROKER_URL, 0); 
 
     while(1){
         zmsg_t * list_msg = zmsg_new();
         zmsg_pushstr(list_msg, "hi");
-        zmsg_t * reply_msg = mdcli_send(client, "mmi.list", &list_msg);
+        zmsg_t * reply_msg = client_send(client, "mmi.list", &list_msg);
         if(!reply_msg || zmsg_size(reply_msg) < 1) break;
 
         char * s;
@@ -96,5 +98,5 @@ int main(int argc, char ** argv){
         zclock_sleep(1000);
     }
 
-    client_del();
+    client_del(client);
 }
