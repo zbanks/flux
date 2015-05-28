@@ -4,22 +4,26 @@
 #include <czmq.h>
 #include "lib/mdwrkapi.h"
 
+
 struct resource;
+
+typedef zmsg_t * (*request_fn_t)(struct resource * resource, zmsg_t * msg, void * args);
+
 struct resource {
     mdwrk_t * worker;
     zsock_t * socket;
     char * name;
-    int id;
+    void * args;
     int verbose;
-    zmsg_t * (*request)(struct resource * resource, zmsg_t * msg);
+    request_fn_t request;
 };
 
 #define N_MAX_RESOURCES 16
 
 void server_init();
 void server_del();
-void server_run();
-struct resource * server_add_lux_resource(int id, int verbose);
-void server_del_resource(struct resource * resource);
+int server_run();
+void server_rm_resource(struct resource * resource);
+struct resource * server_add_resource(char * name, request_fn_t request, void * args, int verbose);
 
 #endif

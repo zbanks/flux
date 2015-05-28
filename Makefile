@@ -33,8 +33,11 @@ INC  = -I. -Isrc/ -Ilib/lux/inc -Ilib -L/usr/local/lib -L/usr/lib
 LIB  = -lczmq -lzmq
 
 # Assembler, compiler, and linker flags
+PEDANTIC = -Wpedantic
 CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=c99  -DLUX_WRITE_ONLY
 LFLAGS  = $(CFLAGS)
+
+#CFLAGS += $(PEDANTIC)
 
 -include $(DEPS)
 %.d : %.c

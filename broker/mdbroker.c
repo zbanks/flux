@@ -144,11 +144,11 @@ void s_broker_client_msg (broker_t *self, zframe_t *sender, zmsg_t *msg)
             return_code = "200";
             // TODO: is this thread-safe? XXX
             const char * name;
-            zhash_first(self->services);
+            service_t * service = (service_t *) zhash_first(self->services);
             while((name = zhash_cursor(self->services))){
-                if(memcmp(name, "mmi.", 4) != 0)
+                if(service->workers)
                     zmsg_addstr(msg, name);
-                if(!zhash_next(self->services)) break;
+                if(!(service = (service_t *) zhash_next(self->services))) break;
             }
 
             free(prefix);
