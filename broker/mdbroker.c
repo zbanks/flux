@@ -126,6 +126,10 @@ void s_broker_client_msg (broker_t *self, zframe_t *sender, zmsg_t *msg)
     //  If we got a MMI service request, process that internally
     if (zframe_size (service_frame) >= 4
     &&  memcmp (zframe_data (service_frame), "mmi.", 4) == 0) {
+        //  Remove & save client return envelope and insert the
+        //  protocol header and service name, then rewrap envelope.
+        zframe_t *client = zmsg_unwrap (msg);
+
         char *return_code;
         if (zframe_streq (service_frame, "mmi.service")) {
             char *name = zframe_strdup (zmsg_last (msg));
@@ -133,18 +137,31 @@ void s_broker_client_msg (broker_t *self, zframe_t *sender, zmsg_t *msg)
                 (service_t *) zhash_lookup (self->services, name);
             return_code = service && service->workers? "200": "404";
             free (name);
-        }
-        else
+        }else if(zframe_streq(service_frame, "mmi.list")){
+            // TODO: Actually use the prefix argument
+            char *prefix = zframe_strdup (zmsg_last (msg));
+
+            return_code = "200";
+            // TODO: is this thread-safe? XXX
+            const char * name;
+            zhash_first(self->services);
+            while((name = zhash_cursor(self->services))){
+                if(memcmp(name, "mmi.", 4) != 0)
+                    zmsg_addstr(msg, name);
+                if(!zhash_next(self->services)) break;
+            }
+
+            free(prefix);
+        }else{
             return_code = "501";
+        }
 
-        zframe_reset (zmsg_last (msg), return_code, strlen (return_code));
+        zframe_reset (zmsg_first (msg), return_code, strlen (return_code));
 
-        //  Remove & save client return envelope and insert the
-        //  protocol header and service name, then rewrap envelope.
-        zframe_t *client = zmsg_unwrap (msg);
         zmsg_prepend (msg, &service_frame);
         zmsg_pushstr (msg, MDPC_CLIENT);
         zmsg_wrap (msg, client);
+
         zmsg_send (&msg, self->socket);
     }
     else

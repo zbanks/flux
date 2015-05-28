@@ -106,7 +106,7 @@ zmsg_t * mdwrk_event(mdwrk_t * self){
         zclock_log ("I: received message from broker:");
         zmsg_dump (msg);
     }
-    self->dead_at = self->dead;
+    self->dead_at = zclock_time() + self->dead;
 
     //  Don't try to handle errors, just assert noisily
     assert (zmsg_size (msg) >= 3);

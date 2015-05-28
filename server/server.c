@@ -60,7 +60,6 @@ void server_run(){
         for(int i = 0; i < n_resources; i++){
             mdwrk_check_heartbeat(resources[i].worker);
         }
-        printf("Polled, %d resources\n", n_resources);
     }
     
 }

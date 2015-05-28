@@ -2,9 +2,10 @@
 #include "core/err.h"
 #include "server/server.h"
 #include "client/client.h"
+#include "lib/mdcliapi.h"
 #include <czmq.h>
 
-zsock_t * client;
+mdcli_t * client;
 
 int client_event(){
     int rc;
@@ -21,16 +22,17 @@ int client_event(){
     return 0;
 }
 
-void client_init(){
+void client_init(int verbose){
     printf("Client starting on localhost:" BROKER_PORT "...\n");
 
-    client = zsock_new_req("tcp://localhost:" BROKER_PORT);
-    if(!client) FAIL("Unable to open ZMQ REQ socket\n");
+    client = mdcli_new("tcp://localhost:" BROKER_PORT, verbose);
+    if(!client) FAIL("Unable to open client\n");
+    mdcli_set_timeout(client, 10);
+    mdcli_set_retries(client, 3);
 }
 
 void client_del(){
-    zsock_destroy(&client);
-    if(client) FAIL("Error destroying client\n");
+    mdcli_destroy(&client);
 
     printf("Client closed.\n");
 }
