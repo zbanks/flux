@@ -21,7 +21,7 @@ OBJECTS_CLIENT = $(patsubst %.c,%.o,$(C_SRC_CLIENT))
 OBJECTS_ALL = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS_ALL:.o=.d)
 
-INC  = -I.  -Ilib/lux/inc -Ilibflux -L/usr/local/lib -L/usr/lib -Llibflux
+INC  = -I.  -Ilib/lux/inc -Ilibflux -Llibflux -L/usr/local/lib -L/usr/lib
 LIB  = -lczmq -lzmq -lflux
 
 # Assembler, compiler, and linker flags

@@ -60,7 +60,8 @@ int client_send(client_t * client, char * name, char * cmd, zmsg_t ** msg, zmsg_
     assert(name);
     assert(cmd);
     assert(msg);
-    assert(reply);
+    assert(reply);   // We need a spot to put the reply...
+    assert(!*reply); // ...but there shouldn't  already be something there!
 
     zmsg_pushstr(*msg, cmd);
     *reply = mdcli_send(client->mdcli, name, msg);
