@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 #include "lib/err.h"
-#include "crc.h"
+#include "lib/crc.h"
 #include "lux.h"
 #include "serial/serial.h"
 

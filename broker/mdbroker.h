@@ -5,7 +5,7 @@
 //  http://rfc.zeromq.org/spec:7 and http://rfc.zeromq.org/spec:8.
 
 #include <czmq.h>
-#include "lib/mdp.h"
+#include "mdp.h"
 
 //  We'd normally pull these from config data
 

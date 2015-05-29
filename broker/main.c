@@ -1,5 +1,5 @@
-#include "broker/mdbroker.h"
-#include "broker/broker.h"
+#include "mdbroker.h"
+#include "broker.h"
 #include <czmq.h>
 
 int main (int argc, char *argv [])

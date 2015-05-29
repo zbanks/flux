@@ -9,14 +9,9 @@ static client_t * client;
 // Sends `n`@`frame` to address `lid` via the broker
 // If `response` is not null, then the server needs to wait for a Lux response & return the data
 // Return value is negative on error, 0 on success if `response` = 0
+/*
 int send_lux(char * lid, char * frame, int n, unsigned char ** response){
     zmsg_t * lux_msg = zmsg_new();
-
-    // First frame is a byte indicating if we want a response
-    if(response)
-        zmsg_addmem(lux_msg, "\001", 1);
-    else
-        zmsg_addmem(lux_msg, "\000", 1);
 
     // Second frame is the actual data
     zmsg_addmem(lux_msg, frame, n);
@@ -56,7 +51,8 @@ int send_lux(char * lid, char * frame, int n, unsigned char ** response){
     zmsg_destroy(&lux_reply_msg);
     return rc;
 }
-
+*/
+ 
 int main(int argc, char ** argv){
     UNUSED(argc);
     UNUSED(argv);
@@ -64,37 +60,49 @@ int main(int argc, char ** argv){
     client = client_init(BROKER_URL, 0); 
 
     while(1){
-        zmsg_t * list_msg = zmsg_new();
-        zmsg_pushstr(list_msg, "hi");
-        zmsg_t * reply_msg = client_send(client, "mmi.list", &list_msg);
-        if(!reply_msg || zmsg_size(reply_msg) < 1) break;
+        flux_id_t * ids;
+        int n = client_id_list(client, "lux:", &ids);
+        if(n >= 0){
+            printf("\n%d Available devices:\n", n);
+            for(int i = 0; i < n; i++){
+                printf("    %.16s\n", ids[i]);
 
-        char * s;
-        if(zframe_streq(zmsg_first(reply_msg), "200")){
-            free(zmsg_popstr(reply_msg)); //pop 200
-            printf("\nAvailable devices:\n");
-            while((s = zmsg_popstr(reply_msg))){
-                printf("    %s\n", s);
-
+                /*
                 unsigned char * response = 0;
-                int n;
-                n = send_lux(s, "lux msg!", 8, &response);
-                if(n >= 0){
-                    if(n > 0 && response){
-                        printf("resp: %.*s\n", n, response);
+                int r;
+                r = send_lux(ids[i], "lux msg!", 8, &response);
+                if(r >= 0){
+                    if(r > 0 && response){
+                        printf("resp: %.*s\n", r, response);
                         free(response);
                     }
                 }else{
-                    printf("send_lux error %d\n", n);
+                    printf("send_lux error %d\n", r);
                 }
-                free(s);
-                zclock_sleep(300);
+                */
+                zmsg_t * lmsg = zmsg_new();
+                zmsg_pushstr(lmsg, "Hello new protocol!");
+
+                zmsg_t * reply = NULL;
+                int r = client_send(client, ids[i], "ECHO", &lmsg, &reply);
+                if(!r){
+                    char * s = zframe_strdup(zmsg_first(reply));
+                    printf("response: '%s'\n", s);
+                    free(s);
+                    zmsg_destroy(&reply);
+                }else{
+                    printf("send_lux error\n");
+                }
+
+                zclock_sleep(300); 
             }
+            free(ids);
         }else{
             printf("Error from broker\n");
+            break;
         }
-        
-        zmsg_destroy(&reply_msg);
+        printf("lux:00000001 -> %d\n", client_id_check(client, "lux:00000001"));
+        printf("lux:00000abc -> %d\n", client_id_check(client, "lux:00000abc"));
         zclock_sleep(1000);
     }
 

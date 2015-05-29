@@ -4,25 +4,24 @@ CC = gcc
 C_SRC_COMMON  = $(wildcard core/*.c)
 C_SRC_COMMON += $(wildcard lib/*.c)
 
-C_SRC_BROKER = $(wildcard broker/*.c)
-
 C_SRC_SERVER = $(wildcard server/*.c)
 C_SRC_SERVER += $(wildcard serial/*.c)
 C_SRC_SERVER += $(wildcard lib/lux/src/*.c)
 
 C_SRC_CLIENT = $(wildcard client/*.c)
 
-C_SRC = $(C_SRC_COMMON) $(C_SRC_BROKER) $(C_SRC_SERVER) $(C_SRC_CLIENT)
-OBJECTS_COMMON = $(patsubst %.c,%.o,$(C_SRC_COMMON))
-OBJECTS_BROKER = $(patsubst %.c,%.o,$(C_SRC_BROKER))
-OBJECTS_SERVER = $(patsubst %.c,%.o,$(C_SRC_SERVER))
+C_SRC = $(C_SRC_COMMON) $(C_SRC_SERVER) $(C_SRC_CLIENT)
+
+C_SRC_SERVER += $(C_SRC_COMMON)
+C_SRC_CLIENT += $(C_SRC_COMMON)
+
+OBJECTS_SERVER = $(patsubst %.c,%.o,$(C_SRC_SERVER)) 
 OBJECTS_CLIENT = $(patsubst %.c,%.o,$(C_SRC_CLIENT))
-OBJECTS_LIB = $(patsubst %.c,%.o,$(C_SRC_LIB))
-OBJECTS_COMMON += $(OBJECTS_LIB)
-OBJECTS_ALL = $(OBJECTS_COMMON) $(OBJECTS_BROKER) $(OBJECTS_SERVER) $(OBJECTS_CLIENT) 
+
+OBJECTS_ALL = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS_ALL:.o=.d)
 
-INC  = -I. -Isrc/ -Ilib/lux/inc -Ilib -L/usr/local/lib -L/usr/lib -Llibflux
+INC  = -I.  -Ilib/lux/inc -Ilibflux -L/usr/local/lib -L/usr/lib -Llibflux
 LIB  = -lczmq -lzmq -lflux
 
 # Assembler, compiler, and linker flags
@@ -38,23 +37,32 @@ LFLAGS  = $(CFLAGS)
 
 # Targets
 .PHONY: all
-all: libflux flux-server flux-broker flux-client
+all: libflux flux-broker flux-server flux-client
 
 .PHONY: clean
 clean:
+	-$(MAKE) -C libflux clean
+	-$(MAKE) -C broker clean
 	-rm -f $(OBJECTS_ALL) $(DEPS) flux-server flux-broker flux-client
 
+.PHONY: install
+install:
+	$(MAKE) -C libflux install
+	$(MAKE) -C broker install
+
 .PHONY: libflux
+libflux:
 	$(MAKE) -C libflux
 
-flux-server: $(OBJECTS_COMMON) $(OBJECTS_SERVER)
-	$(CC) $(LFLAGS) -o $@ $^ $(LIB)
+.PHONY: flux-broker
+flux-broker:
+	$(MAKE) -C broker
 
-flux-broker: $(OBJECTS_COMMON) $(OBJECTS_BROKER)
-	$(CC) $(LFLAGS) -o $@ $^ $(LIB)
+flux-server: libflux $(OBJECTS_SERVER)
+	$(CC) $(LFLAGS) -o $@ $(OBJECTS_SERVER) $(LIB)
 
-flux-client: $(OBJECTS_COMMON) $(OBJECTS_CLIENT)
-	$(CC) $(LFLAGS) -o $@ $^ $(LIB)
+flux-client: libflux $(OBJECTS_CLIENT)
+	$(CC) $(LFLAGS) -o $@ $(OBJECTS_CLIENT) $(LIB)
 
 #%.o: %.c $(C_INC)
 #	gcc $(CFLAGS) -std=c99 -c -o $@ $<

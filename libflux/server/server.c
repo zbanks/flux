@@ -6,11 +6,14 @@
 struct resource {
     mdwrk_t * worker;
     zsock_t * socket;
-    char * name;
+    flux_id_t name;
+    char unused; // Null byte following name. Too paranoid?
     void * args;
     int verbose;
     request_fn_t request;
 };
+
+#define N_MAX_RESOURCES 64
 
 static resource_t resources[N_MAX_RESOURCES];
 static int n_resources = 0;
@@ -48,8 +51,6 @@ void server_del(){
 }
 
 int server_run(){
-    int rc;
-
     if(!poller) server_init();
 
     zsock_t * which = zpoller_wait(poller, poll_interval);
@@ -57,12 +58,28 @@ int server_run(){
     if(!zpoller_expired(poller)){
         for(int i = 0; i < n_resources; i++){
             if(which == resources[i].socket){
+                int rc;
                 zmsg_t * msg = mdwrk_event(resources[i].worker);
-                if(msg){
-                    zmsg_t * reply = resources[i].request(&resources[i], msg, resources[i].args);
-                    rc = mdwrk_send(resources[i].worker, &reply);
-                    if(rc) printf("Error sending reply from worker %s\n", resources[i].name);
+                zmsg_t * reply = NULL;
+
+                if(msg && zmsg_size(msg) >= 1){
+                    char * cmd = zmsg_popstr(msg);
+                    rc = resources[i].request(resources[i].args, cmd, msg, &reply);
+                    zmsg_destroy(&msg);
+                    free(cmd);
                 }
+
+                if(reply){
+                    if(!rc) zmsg_pushstr(reply, "200");
+                    else zmsg_pushstr(reply, "500");
+                }else{
+                    reply = zmsg_new();
+                    zmsg_pushstr(reply, "500");
+                }
+
+                rc = mdwrk_send(resources[i].worker, &reply);
+                if(rc) printf("Error sending reply from worker %16.s\n", resources[i].name);
+                
                 break;
             }
         }
@@ -76,14 +93,22 @@ int server_run(){
     return 0; 
 }
 
-resource_t * server_add_resource(char * broker, char * name, request_fn_t request, void * args, int verbose){
-    if(n_resources == N_MAX_RESOURCES) return NULL;
-    if(!name) return NULL;
+resource_t * server_add_resource(char * broker, flux_id_t name, request_fn_t request, void * args, int verbose){
+    assert(name);
+    if(n_resources == N_MAX_RESOURCES){
+        printf("Unable to add additional resource: the server only supports %d resources.\n\n", N_MAX_RESOURCES);
+        printf("You probably shouldn't have this many resources on the same server anyways.\n");
+        printf("Think more about your architecture or write your own server.\n\n");
+        assert(n_resources < N_MAX_RESOURCES);
+        return NULL;
+    }
 
     resource_t * resource = resources;
     while(resource->worker) resource++;
 
-    resource->name = name;
+    memset(resource->name, 0, sizeof(flux_id_t));
+    strncpy(resource->name, name, sizeof(flux_id_t));
+    resource->unused = 0;
     resource->verbose = verbose;
     resource->args = args;
     resource->request = request;
@@ -98,21 +123,20 @@ resource_t * server_add_resource(char * broker, char * name, request_fn_t reques
         rc = zpoller_add(poller, resource->socket);
         if(rc){ // Unable to add to poller
             mdwrk_destroy(&resource->worker);
-            free(resource->name);
             memset(resource, 0, sizeof(resource_t));
             return NULL;
         }
     }
     n_resources++;
 
-    printf("Connected to broker on %s with resource %s\n", broker, name);
+    printf("Connected to broker on %16.s with resource %s\n", broker, name);
 
     return resource;
 }
 
 void server_rm_resource(resource_t * resource){
     if(!resource->worker) return;
-    printf("Destroying resource %s\n", resource->name);
+    printf("Destroying resource %16.s\n", resource->name);
     if(poller && resource->socket) zpoller_remove(poller, resource->socket);
     mdwrk_destroy(&resource->worker);
     if(resource->worker) printf("Unable to destroy worker?\n");

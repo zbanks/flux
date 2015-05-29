@@ -12,32 +12,23 @@ static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
 
 struct device {
     uint32_t id;
-    char name[16];
+    flux_id_t name;
     resource_t * resource;
     int bus;
+    zhash_t * info;
 };
 
 static struct device devices[N_LUX_IDS] = {{0}};
 
-zmsg_t * lux_request(resource_t * resource, zmsg_t * msg, void * args){
-    UNUSED(resource);
-
+int lux_request(void * args, const char * cmd, zmsg_t * msg, zmsg_t ** reply){
     struct device * device = (struct device *) args;
-    if(zmsg_size(msg) != 2){
-        zmsg_destroy(&msg);
-        return zmsg_new();
-    }
-
-    char needs_data = 0;
-    zframe_t * req = zmsg_pop(msg);
-    if(zframe_size(req)) needs_data = *(char *) zframe_data(req);
 
     char * s = zframe_strdup(zmsg_last(msg));
-    printf("Recieved lux %u %08x/%s '%s'\n", needs_data, device->id, device->name, s);
+    printf("Req %s: %s '%s'\n", device->name, cmd, s);
     free(s);
 
-    zmsg_pushmem(msg, "", 0);
-    return msg;
+    *reply = zmsg_dup(msg);
+    return 0;
 }
 
 static void enumerate_devices(){
@@ -59,6 +50,7 @@ int main(int argc, char ** argv){
         snprintf(devices[i].name, 15, "lux:%08X", lux_ids[i]);
         devices[i].id = lux_ids[i];
         devices[i].bus = 1;
+        zhash_new(devices[i].info);
     }
 
     //if(!serial_init()) FAIL("Unable to initialize serial port.\n");
@@ -72,5 +64,9 @@ int main(int argc, char ** argv){
             if((rc = server_run())) break;
     }
 
+    // Teardown
     server_del();
+    for(int i = 0; i < n_lux_ids; i++){
+        zhash_destroy(&devices[i].info);
+    }
 }
