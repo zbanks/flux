@@ -55,14 +55,15 @@ int server_run(){
 
     zsock_t * which = zpoller_wait(poller, poll_interval);
     if(zpoller_terminated(poller)) return -1;
-    if(!zpoller_expired(poller)){
-        for(int i = 0; i < n_resources; i++){
+    if(!zpoller_expired(poller) && which){
+        for(int i = 0; i < N_MAX_RESOURCES; i++){
             if(which == resources[i].socket){
                 int rc;
                 zmsg_t * msg = mdwrk_event(resources[i].worker);
                 zmsg_t * reply = NULL;
 
-                if(msg && zmsg_size(msg) >= 1){
+                if(!msg) break;
+                if(zmsg_size(msg) >= 1){
                     char * cmd = zmsg_popstr(msg);
                     rc = resources[i].request(resources[i].args, cmd, msg, &reply);
                     zmsg_destroy(&msg);

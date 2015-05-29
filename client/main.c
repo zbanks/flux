@@ -4,6 +4,7 @@
 #include <czmq.h>
 
 #define BROKER_URL "tcp://localhost:5555"
+
 static client_t * client;
 
 // Sends `n`@`frame` to address `lid` via the broker
@@ -57,7 +58,9 @@ int main(int argc, char ** argv){
     UNUSED(argc);
     UNUSED(argv);
 
-    client = client_init(BROKER_URL, 0); 
+    int verbose = 0;
+
+    client = client_init(BROKER_URL, verbose); 
 
     while(1){
         flux_id_t * ids;
@@ -80,7 +83,8 @@ int main(int argc, char ** argv){
                     printf("send_lux error %d\n", r);
                 }
                 */
-                zmsg_t * lmsg = zmsg_new();
+                zmsg_t * lmsg;
+                lmsg = zmsg_new();
                 zmsg_pushstr(lmsg, "Hello new protocol!");
 
                 zmsg_t * reply = NULL;
@@ -92,6 +96,23 @@ int main(int argc, char ** argv){
                     zmsg_destroy(&reply);
                 }else{
                     printf("send_lux error\n");
+                    break;
+                }
+                zclock_sleep(100); 
+
+                lmsg = zmsg_new();
+                reply = NULL;
+                r = client_send(client, ids[i], "INFO", &lmsg, &reply);
+                if(!r){
+                    zhash_t * info = zhash_unpack(zmsg_first(reply));
+                    printf("info:");
+                    zhash_save(info, "/dev/stdout");
+                    printf("\n");
+
+                    zmsg_destroy(&reply);
+                }else{
+                    printf("send_lux error\n");
+                    break;
                 }
 
                 zclock_sleep(300); 
