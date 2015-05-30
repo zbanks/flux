@@ -4,14 +4,6 @@
 #include <flux.h>
 #include <czmq.h>
 
-#define DEFAULT_BROKER_URL "tcp://localhost:1365"
-#define N_LUX_IDS 4
-
-static int n_lux_ids = N_LUX_IDS;
-static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
-static int verbose = 0;
-static char * broker_url;
-
 struct device {
     int id;
     flux_id_t name;
@@ -23,7 +15,33 @@ struct device {
     char id_str[256];
 };
 
+#define DEFAULT_BROKER_URL "tcp://localhost:1365"
+#define N_LUX_IDS 4
+
 static struct device devices[N_LUX_IDS] = {{0}};
+static int n_lux_ids = N_LUX_IDS;
+static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
+static int serial_available = 0;
+static int verbose = 0;
+static char * broker_url;
+
+int dummy_request(void * args, const char * cmd, zmsg_t * body, zmsg_t ** reply){
+    UNUSED(args);
+
+    if(strcmp(cmd, "PING") == 0){
+        zmsg_t * r = *reply = zmsg_new();
+        zmsg_pushstr(r, "PONG");
+    }else if(strcmp(cmd, "ECHO") == 0){
+        *reply = zmsg_dup(body);
+    }else if(strcmp(cmd, "INFO") == 0){
+        zmsg_t * r = *reply = zmsg_new();
+        zmsg_pushstr(r, "dummy=dummy");
+    }else{
+        return -1;
+    }
+
+    return 0;
+}
 
 int lux_request(void * args, const char * cmd, zmsg_t * msg, zmsg_t ** reply){
     struct device * device = (struct device *) args;
@@ -49,6 +67,8 @@ int lux_request(void * args, const char * cmd, zmsg_t * msg, zmsg_t ** reply){
             rc = lux_tx_packet(&lf);
         }else rc = -1;
         zframe_destroy(&pixels);
+    }else{
+        rc = -1;
     }
 
     return rc;
@@ -96,10 +116,21 @@ fail:
     }
 }
 
+
 int main(int argc, char ** argv){
+    char * dummy_name = NULL;
+    flux_dev_t * dummy_dev = NULL;
+
     argv++; argc--;
     if(argc) broker_url = *argv++, argc--;
+    if(argc) dummy_name = *argv++, argc--;
     if(argc) verbose = streq(*argv++, "-v"), argc--;
+    if(streq(dummy_name, "-v")){
+        verbose = 1;
+        dummy_name = NULL;
+    }
+
+    if(dummy_name) dummy_dev = flux_dev_init(broker_url, dummy_name, &dummy_request, NULL);
 
     for(int i = 0; i < n_lux_ids; i++){
         snprintf(devices[i].name, 15, "lux:%08X", lux_ids[i]);
@@ -108,19 +139,26 @@ int main(int argc, char ** argv){
         devices[i].info = zhash_new();
     }
 
-    if(!serial_init()) FAIL("Unable to initialize serial port.\n");
-    if(!flux_server_init(verbose)) FAIL("Unable to intialize flux server.\n");
+    if(!serial_init()) fprintf(stderr, "Unable to initialize serial port.\n");
+    else serial_available = 1;
+    if(!serial_available && !dummy_dev) FAIL("No devices to broadcast; exiting.\n");
+
+    if(flux_server_init(verbose)) FAIL("Unable to intialize flux server.\n");
 
     int rc = 0;
     while(!rc){
-        enumerate_devices();
+        if(serial_available) enumerate_devices();
         for(int i = 0; i < 1000; i++)
             if((rc = flux_server_poll())) break;
     }
 
     // Teardown
-    serial_close();
+    if(serial_available) serial_close();
+
     flux_server_close();
+
+    if(dummy_dev) flux_dev_del(dummy_dev);
+
     for(int i = 0; i < n_lux_ids; i++){
         zhash_destroy(&devices[i].info);
     }
