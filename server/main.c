@@ -130,7 +130,7 @@ int main(int argc, char ** argv){
     if(argc) broker_url = *argv++, argc--;
     if(argc) dummy_name = *argv++, argc--;
     if(argc) verbose = streq(*argv++, "-v"), argc--;
-    if(streq(dummy_name, "-v")){
+    if(dummy_name && streq(dummy_name, "-v")){
         verbose = 1;
         dummy_name = NULL;
     }

@@ -1,42 +1,7 @@
 flux
 ====
 
-Middlelayer for controlling lux devices &amp; more: "jackd for lights"
-
-Building
-========
-
-Flux is based on [ZMQ](http://zeromq.org/) and uses the [CZMQ](http://czmq.zeromq.org/) library. 
-CZMQ is not commonly available as a prepackaged binary, so it is reccomended to build it from source:
-```
-git submodule update --init
-cd libsodium
-./autogen.sh
-./configure && make check
-sudo make install
-sudo ldconfig
-cd ..
-
-cd libzmq
-./autogen.sh
-./configure && make check
-sudo make install
-sudo ldconfig
-cd ..
-
-cd czmq
-./autogen.sh
-./configure && make check
-sudo make install
-sudo ldconfig
-cd ..
-```
-
-Once you have CZMQ, you can build flux:
-```
-make
-sudo make install
-```
+Middlelayer for controlling lux devices &amp; more: "jackd for lights".
 
 Model
 =====
@@ -133,3 +98,54 @@ It takes in an optional command line argument, a dummy ID (i.e. `"dummy:0"`). If
 
 #### flux-client
 `flux-client` is an example client which sends some `ECHO` and `INFO` commands to available devices for debugging. 
+
+Building
+========
+
+Flux is based on [ZMQ](http://zeromq.org/) and uses the [CZMQ](http://czmq.zeromq.org/) library. 
+CZMQ is not commonly available as a prepackaged binary, so it is reccomended to build it from source:
+```
+git submodule update --init
+cd libsodium
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+cd libzmq
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+cd czmq
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+```
+
+Once you have CZMQ, you can build flux:
+```
+make
+sudo make install
+```
+
+You can also take a shortcut by starting with ZMQ if you can get it:
+```
+sudo apt-get install libsodium-dev libzmq3-dev libtool
+
+git submodule update --init
+cd czmq
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+make
+sudo make install
+```
