@@ -157,7 +157,7 @@ void lux_hal_enable_rx(){
     lux_is_transmitting = 0;
 #ifndef LUX_WRITE_ONLY
     const int r = TIOCM_RTS;
-    usleep(1000);
+    usleep(2000);
     ioctl(ser, TIOCMBIS, &r);
 #endif
 }
@@ -167,7 +167,7 @@ void lux_hal_disable_rx(){
     lux_is_transmitting = 1;
     ioctl(ser, TIOCMBIC, &r);
 #ifndef LUX_WRITE_ONLY
-    usleep(1000);
+    usleep(2000);
 #endif
 }
 
