@@ -99,11 +99,11 @@ The return value is ``0`` on success, and ``-1`` on failure (timeout, destinatio
 
 On the server side, each ``flux_dev_t`` (which corresponds to a device) has a ``request`` function with the following type (``flux_request_fn_t``):
 
-``int request(void * args, const char * command, zmsg_t * body, zmsg_t ** reply)``
+``int request(void * args, const char * command, zmsg_t ** body, zmsg_t ** reply)``
 
 When the server receives a message for a given device, this method is called. ``args`` is populated from ``flux_dev_t`` and can be used to pass device-specific information. 
 
-Do not attempt to free/destroy ``body``.
+The ownership of ``body`` is passed onto `request`. Either you should call `zmsg_destroy(body)` before returning, or you need to pass on ownership of `body` to someone else (i.e. by setting `*reply = *body` as in `ECHO`).
 
 To indicate success, populate ``reply`` with a new (possibly empty) zmsg and return ``0``. The calling context will destory the zmsg after sending it.
 

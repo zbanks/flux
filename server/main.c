@@ -16,48 +16,53 @@ struct device {
 };
 
 #define DEFAULT_BROKER_URL "tcp://localhost:1365"
-#define N_LUX_IDS 4
 
-static struct device devices[N_LUX_IDS] = {{0}};
+#define N_LUX_IDS 4
 static int n_lux_ids = N_LUX_IDS;
 static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
+
+static struct device devices[N_LUX_IDS] = {{0}};
 static int serial_available = 0;
 static int verbose = 0;
 static char * broker_url;
 
-int dummy_request(void * args, const char * cmd, zmsg_t * body, zmsg_t ** reply){
+int dummy_request(void * args, const char * cmd, zmsg_t ** body, zmsg_t ** reply){
     UNUSED(args);
 
     if(strcmp(cmd, "PING") == 0){
-        zmsg_t * r = *reply = zmsg_new();
-        zmsg_pushstr(r, "PONG");
+        *reply = *body;
+        zmsg_pushstr(*reply, "PONG");
     }else if(strcmp(cmd, "ECHO") == 0){
-        *reply = zmsg_dup(body);
+        *reply = *body;
     }else if(strcmp(cmd, "INFO") == 0){
+        zmsg_destroy(body);
         zmsg_t * r = *reply = zmsg_new();
         zmsg_pushstr(r, "dummy=dummy");
     }else{
+        zmsg_destroy(body);
         return -1;
     }
 
     return 0;
 }
 
-int lux_request(void * args, const char * cmd, zmsg_t * msg, zmsg_t ** reply){
+int lux_request(void * args, const char * cmd, zmsg_t ** msg, zmsg_t ** reply){
     struct device * device = (struct device *) args;
     int rc = 0;
 
     //printf("Req %s: %s\n", device->name, cmd);
     if(strcmp(cmd, "PING") == 0){
-        zmsg_t * r = *reply = zmsg_new();
-        zmsg_pushstr(r, "PONG");
+        *reply = *msg;
+        zmsg_pushstr(*reply, "PONG");
     }else if(strcmp(cmd, "ECHO") == 0){
-        *reply = zmsg_dup(msg);
+        *reply = *msg;
     }else if(strcmp(cmd, "INFO") == 0){
+        zmsg_destroy(msg);
         zmsg_t * r = *reply = zmsg_new();
         zmsg_push(r, zhash_pack(device->info));
     }else if(strcmp(cmd, "FRAME") == 0){
-        zframe_t * pixels = zmsg_last(msg);
+        *reply = *msg;
+        zframe_t * pixels = zmsg_pop(*msg);
         if(zframe_size(pixels) == device->length * 3){
             struct lux_frame lf;
             lf.data.carray.cmd = CMD_FRAME;

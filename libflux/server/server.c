@@ -69,8 +69,7 @@ int flux_server_poll(){
                 if(!body) break;
                 if(zmsg_size(body) >= 1){
                     char * cmd = zmsg_popstr(body);
-                    rc = devices[i].request(devices[i].args, cmd, body, &reply);
-                    zmsg_destroy(&body);
+                    rc = devices[i].request(devices[i].args, cmd, &body, &reply);
                     free(cmd);
                 }
 

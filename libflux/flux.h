@@ -9,7 +9,7 @@ typedef char flux_id_t[16];
 struct _flux_dev;
 typedef struct _flux_dev flux_dev_t;
 
-typedef int (*request_fn_t)(void * args, const char * cmd, zmsg_t * body, zmsg_t ** reply);
+typedef int (*request_fn_t)(void * args, const char * cmd, zmsg_t ** body, zmsg_t ** reply);
 
 int flux_server_init(int verbose);
 void flux_server_close();
