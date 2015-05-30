@@ -96,6 +96,11 @@ To indicate success, populate ``response`` with a new (possibly empty) zmsg and 
 
 To indicate failure, return ``-1``. You can optionally populate ``response`` if you want to send additional information about the error to the client (e.g. an error message).
 
+### Common Commands
+
+The following commands should be implemented for all devices on the server.
+- ``PING`` no body, replies with a single frame consisting of ``"PONG"``.
+- ``INFO`` no body, replies with a single frame with a serialized zhash containing device information.
 
 Usage
 =====

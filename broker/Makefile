@@ -17,7 +17,7 @@ LIB = -lzmq -lczmq
 PEDANTIC = -Wpedantic
 CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=c99 -fPIC
 LFLAGS  = $(CFLAGS)
-#CFLAGS += $(PEDANTIC)
+CFLAGS += $(PEDANTIC)
 
 # Targets
 .PHONY: all

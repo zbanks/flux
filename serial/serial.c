@@ -17,7 +17,6 @@ int ser;
 static char lux_is_transmitting;
 static crc_t crc;
 int serial_set_attribs (int, int);
-void serial_set_blocking (int, int);
 
 uint8_t match_destination(uint8_t* dest){
     uint32_t addr = *(uint32_t *)dest;
@@ -49,16 +48,16 @@ char serial_init(){
     lux_init();
 
     if(ser > 0){
+        /*
         serial_set_attribs(ser, 3000000);
-        serial_set_blocking(ser, 1);
+        */
         return 1;
     }
     return 0;
 }
 
 void serial_close(){
-    //TODO
-    //close(ser);
+    if(ser) close(ser);
 }
 
 char lux_command_response(struct lux_frame *cmd, struct lux_frame *response, int timeout_ms){
@@ -134,7 +133,6 @@ char lux_rx_packet(struct lux_frame *response, int timeout_ms){
         for(int i = 0; i < 1100; i++)
             lux_codec();   
         if(lux_packet_in_memory){
-            //printf("rx packet @t=%d\n", j);
             break;
         }
     }
@@ -159,7 +157,7 @@ void lux_hal_enable_rx(){
     lux_is_transmitting = 0;
 #ifndef LUX_WRITE_ONLY
     const int r = TIOCM_RTS;
-    delay(1);
+    usleep(1000);
     ioctl(ser, TIOCMBIS, &r);
 #endif
 }
@@ -169,7 +167,7 @@ void lux_hal_disable_rx(){
     lux_is_transmitting = 1;
     ioctl(ser, TIOCMBIC, &r);
 #ifndef LUX_WRITE_ONLY
-    delay(1);
+    usleep(1000);
 #endif
 }
 
@@ -227,8 +225,8 @@ int serial_set_attribs (int fd, int speed)
         memset (&tty, 0, sizeof tty);
         
         tcgetattr(fd, &tty);
-        cfsetispeed(&tty, speed ?: 0010015);
-        cfsetospeed(&tty, speed ?: 0010015);
+        cfsetispeed(&tty, speed ? speed : 0010015);
+        cfsetospeed(&tty, speed ? speed : 0010015);
 
         tty.c_cflag &= ~CSIZE;     // 8-bit chars
         tty.c_cflag |= CS8;     // 8-bit chars
@@ -244,16 +242,3 @@ int serial_set_attribs (int fd, int speed)
 
         return 0;
 }
-
-void serial_set_blocking (int fd, int should_block)
-{
-        struct termios tty;
-        memset (&tty, 0, sizeof tty);
-        if (tcgetattr (fd, &tty) != 0) FAIL("error %d from tggetattr", errno);
-
-        tty.c_cc[VMIN]  = should_block ? 1 : 0;
-        tty.c_cc[VTIME] = 2;            // 0.2 seconds read timeout
-
-        if (tcsetattr (fd, TCSANOW, &tty) != 0) FAIL("error %d setting term attributes", errno);
-}
-

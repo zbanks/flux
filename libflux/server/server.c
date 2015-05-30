@@ -1,72 +1,76 @@
-#include "lib/err.h"
 #include "lib/mdwrkapi.h"
 #include "flux.h"
 #include <czmq.h>
 
-struct resource {
+struct _flux_dev {
     mdwrk_t * worker;
     zsock_t * socket;
     flux_id_t name;
     char unused; // Null byte following name. Too paranoid?
     void * args;
-    int verbose;
     request_fn_t request;
 };
 
-#define N_MAX_RESOURCES 64
+#define N_MAX_DEVICES 64
 
-static resource_t resources[N_MAX_RESOURCES];
-static int n_resources = 0;
+static flux_dev_t devices[N_MAX_DEVICES];
+static int n_devices = 0;
 static zpoller_t * poller = NULL;
 static int poll_interval = 500;
+static int verbose = 0;
 
-void server_set_poll_interval(int interval){
+void flux_server_set_poll_interval(int interval){
     poll_interval = interval;
 }
 
-void server_init(){
-    printf("Starting server.\n");
+int flux_server_init(int _verbose){
+    verbose = _verbose;
+    if(verbose) printf("Starting server.\n");
 
     poller = zpoller_new(NULL);
-    if(!poller) FAIL("Unable to open ZMQ poller.\n");
+    if(!poller) return -1;
 
-    for(int i = 0; i < N_MAX_RESOURCES; i++){
-        if(!resources[i].worker) continue;
-        int rc;
-        rc = zpoller_add(poller, resources[i].socket);
-        if(rc) FAIL("Unable to set up ZMQ poller.\n");
+    for(int i = 0; i < N_MAX_DEVICES; i++){
+        if(!devices[i].worker) continue;
+
+        if(zpoller_add(poller, devices[i].socket)){
+            zpoller_destroy(&poller);
+            return -1;
+        }
     }
+
+    return 0;
 }
 
-void server_del(){
+void flux_server_close(){
     // Destroy Resources
-    for(int i = 0; i < N_MAX_RESOURCES; i++){
-        server_rm_resource(&resources[i]);
+    for(int i = 0; i < N_MAX_DEVICES; i++){
+        flux_dev_del(&devices[i]);
     }
-    if(n_resources) printf("Error destroying server resources, %d left.\n", n_resources);
 
     zpoller_destroy(&poller);
 
-    printf("Server closed.\n");
+    if(verbose) printf("Server closed.\n");
 }
 
-int server_run(){
-    if(!poller) server_init();
+int flux_server_poll(){
+    // Blocks until an event happens
+    if(!poller) return -1;
 
     zsock_t * which = zpoller_wait(poller, poll_interval);
     if(zpoller_terminated(poller)) return -1;
     if(!zpoller_expired(poller) && which){
-        for(int i = 0; i < N_MAX_RESOURCES; i++){
-            if(which == resources[i].socket){
-                int rc;
-                zmsg_t * msg = mdwrk_event(resources[i].worker);
+        for(int i = 0; i < N_MAX_DEVICES; i++){
+            if(which == devices[i].socket){
+                int rc = -1;
+                zmsg_t * body = mdwrk_event(devices[i].worker);
                 zmsg_t * reply = NULL;
 
-                if(!msg) break;
-                if(zmsg_size(msg) >= 1){
-                    char * cmd = zmsg_popstr(msg);
-                    rc = resources[i].request(resources[i].args, cmd, msg, &reply);
-                    zmsg_destroy(&msg);
+                if(!body) break;
+                if(zmsg_size(body) >= 1){
+                    char * cmd = zmsg_popstr(body);
+                    rc = devices[i].request(devices[i].args, cmd, body, &reply);
+                    zmsg_destroy(&body);
                     free(cmd);
                 }
 
@@ -78,73 +82,73 @@ int server_run(){
                     zmsg_pushstr(reply, "500");
                 }
 
-                rc = mdwrk_send(resources[i].worker, &reply);
-                if(rc) printf("Error sending reply from worker %16.s\n", resources[i].name);
+                rc = mdwrk_send(devices[i].worker, &reply);
+                if(rc && verbose) printf("Error sending reply from worker %16.s\n", devices[i].name);
                 
                 break;
             }
         }
     }
 
-    for(int i = 0; i < N_MAX_RESOURCES; i++){
-        if(!resources[i].worker) continue;
-        mdwrk_check_heartbeat(resources[i].worker);
+    for(int i = 0; i < N_MAX_DEVICES; i++){
+        if(!devices[i].worker) continue;
+        mdwrk_check_heartbeat(devices[i].worker);
     }
 
     return 0; 
 }
 
-resource_t * server_add_resource(char * broker, flux_id_t name, request_fn_t request, void * args, int verbose){
+flux_dev_t * flux_dev_init(const char * broker, const flux_id_t name, request_fn_t request, void * args){
     assert(name);
-    if(n_resources == N_MAX_RESOURCES){
-        printf("Unable to add additional resource: the server only supports %d resources.\n\n", N_MAX_RESOURCES);
-        printf("You probably shouldn't have this many resources on the same server anyways.\n");
-        printf("Think more about your architecture or write your own server.\n\n");
-        assert(n_resources < N_MAX_RESOURCES);
+    if(n_devices == N_MAX_DEVICES){
+        if(verbose){
+            printf("Unable to add additional devices: the server only supports %d devices.\n\n", N_MAX_DEVICES);
+            printf("You probably shouldn't have this many devices on the same server anyways.\n");
+            printf("Think more about your architecture or write your own server.\n\n");
+        }
         return NULL;
     }
 
-    resource_t * resource = resources;
-    while(resource->worker) resource++;
+    // We can't guarentee that devices[] is initialized to 0, but n_devices is.
+    // If n_devices == 0, then we don't care about any of the data in devices[]
+    if(n_devices == 0) memset(devices, 0, sizeof(flux_dev_t) * N_MAX_DEVICES);
 
-    memset(resource->name, 0, sizeof(flux_id_t));
-    strncpy(resource->name, name, sizeof(flux_id_t));
-    resource->unused = 0;
-    resource->verbose = verbose;
-    resource->args = args;
-    resource->request = request;
+    // Find the first open device. A device is open if the worker pointer is NULL
+    flux_dev_t * device = devices;
+    while(device->worker) device++;
 
-    resource->worker = mdwrk_new(broker, resource->name, resource->verbose);
+    memset(device->name, 0, sizeof(flux_id_t));
+    strncpy(device->name, name, sizeof(flux_id_t));
+    device->unused = 0;
+    device->args = args;
+    device->request = request;
+
+    // This call never fails
+    device->worker = mdwrk_new(broker, device->name, verbose);
     // This API might change
-    resource->socket = resource->worker->worker; 
-
+    device->socket = device->worker->worker; 
 
     if(poller){
-        int rc;
-        rc = zpoller_add(poller, resource->socket);
+        int rc = zpoller_add(poller, device->socket);
         if(rc){ // Unable to add to poller
-            mdwrk_destroy(&resource->worker);
-            memset(resource, 0, sizeof(resource_t));
+            mdwrk_destroy(&device->worker);
+            memset(device, 0, sizeof(flux_dev_t));
             return NULL;
         }
     }
-    n_resources++;
+    n_devices++;
 
-    printf("Connected to broker on %16.s with resource %s\n", broker, name);
+    if(verbose) printf("Connected to broker on %16.s with device %s\n", broker, name);
 
-    return resource;
+    return device;
 }
 
-void server_rm_resource(resource_t * resource){
-    if(!resource->worker) return;
-    printf("Destroying resource %16.s\n", resource->name);
-    if(poller && resource->socket) zpoller_remove(poller, resource->socket);
-    mdwrk_destroy(&resource->worker);
-    if(resource->worker) printf("Unable to destroy worker?\n");
-    memset(resource, 0, sizeof(resource_t));
-    n_resources--;
+void flux_dev_del(flux_dev_t * device){
+    if(!device->worker) return;
+    if(verbose) printf("Destroying device %16.s\n", device->name);
+    if(poller && device->socket) zpoller_remove(poller, device->socket);
+    mdwrk_destroy(&device->worker);
+    memset(device, 0, sizeof(flux_dev_t));
+    n_devices--;
 }
 
-zsock_t * server_resource_get_socket(resource_t * resource){
-    return resource->socket;
-}

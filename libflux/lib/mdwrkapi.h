@@ -27,7 +27,7 @@ typedef struct {
     zframe_t *reply_to;         //  Return identity, if any
 } mdwrk_t;
 
-mdwrk_t * mdwrk_new (char *broker,char *service, int verbose);
+mdwrk_t * mdwrk_new (const char *broker, const char *service, int verbose);
 void mdwrk_destroy (mdwrk_t **self_p);
 zmsg_t * mdwrk_event(mdwrk_t * self);
 int mdwrk_send (mdwrk_t *self, zmsg_t **reply_p);

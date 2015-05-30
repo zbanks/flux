@@ -17,9 +17,9 @@ LIB = -lzmq -lczmq
 
 # Assembler, compiler, and linker flags
 PEDANTIC = -Wpedantic
-CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=c99 -fPIC
+CFLAGS  = -g -O3 $(INC) -Wall -Wextra -Werror -std=c99 -fPIC
 LFLAGS  = $(CFLAGS)
-#CFLAGS += $(PEDANTIC)
+CFLAGS += $(PEDANTIC)
 
 # Targets
 .PHONY: all

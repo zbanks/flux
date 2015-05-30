@@ -62,7 +62,7 @@ void s_mdwrk_connect_to_broker (mdwrk_t *self)
 //  Constructor
 
 mdwrk_t *
-mdwrk_new (char *broker,char *service, int verbose)
+mdwrk_new (const char *broker, const char *service, int verbose)
 {
     assert (broker);
     assert (service);

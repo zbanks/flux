@@ -26,10 +26,9 @@ LIB  = -lczmq -lzmq -lflux
 
 # Assembler, compiler, and linker flags
 PEDANTIC = -Wpedantic
-CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=c99  -DLUX_WRITE_ONLY
+CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=gnu99 # -DLUX_WRITE_ONLY
 LFLAGS  = $(CFLAGS)
-
-#CFLAGS += $(PEDANTIC)
+CFLAGS += $(PEDANTIC)
 
 -include $(DEPS)
 %.d : %.c

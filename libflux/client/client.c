@@ -1,29 +1,27 @@
-#include "lib/err.h"
 #include "lib/mdcliapi.h"
 #include "flux.h"
 #include <czmq.h>
 
-struct client {
+struct _flux_cli {
     mdcli_t * mdcli;
     int verbose;
 };
 
-int client_id_list(client_t * client, char * prefix, flux_id_t ** ids){
+int flux_cli_id_list(flux_cli_t * client, const char * prefix, flux_id_t ** ids){
     int n;
     assert(client);
 
     zmsg_t * list_msg = zmsg_new();
     zmsg_t * reply_msg;
 
-    if(client_send(client, "mmi.list", prefix ? prefix : "", &list_msg, &reply_msg)) goto fail;
+    if(flux_cli_send(client, "mmi.list", prefix ? prefix : "", &list_msg, &reply_msg)) goto fail;
     if(!reply_msg) goto fail;
 
     n = zmsg_size(reply_msg);
 
     if(ids){
-        flux_id_t * cursor = *ids = malloc(n * sizeof(flux_id_t));
+        flux_id_t * cursor = *ids = zmalloc(n * sizeof(flux_id_t));
         if(!cursor) goto fail;
-        memset(cursor, 0, n * sizeof(flux_id_t));
 
         zframe_t * frame;
         while((frame = zmsg_pop(reply_msg))){
@@ -41,20 +39,20 @@ fail:
     return n;
 }
 
-int client_id_check(client_t * client, char * prefix){
+int flux_cli_id_check(flux_cli_t * client, const char * prefix){
     assert(client);
     assert(prefix);
 
     zmsg_t * list_msg = zmsg_new();
     zmsg_t * reply_msg;
 
-    int rc = client_send(client, "mmi.service", prefix, &list_msg, &reply_msg);
+    int rc = flux_cli_send(client, "mmi.service", prefix, &list_msg, &reply_msg);
     zmsg_destroy(&reply_msg);
 
     return rc;
 }
 
-int client_send(client_t * client, char * name, char * cmd, zmsg_t ** msg, zmsg_t ** reply){
+int flux_cli_send(flux_cli_t * client, const char * name, const char * cmd, zmsg_t ** msg, zmsg_t ** reply){
     int rc = -1;
     assert(client);
     assert(name);
@@ -75,12 +73,12 @@ int client_send(client_t * client, char * name, char * cmd, zmsg_t ** msg, zmsg_
     return rc;
 }
 
-client_t * client_init(char * broker, int verbose){
-    client_t * client;
+flux_cli_t * flux_cli_init(const char * broker, int verbose){
+    flux_cli_t * client;
 
     if(verbose) printf("Client starting on %s...\n", broker);
 
-    client = malloc(sizeof(client_t));
+    client = zmalloc(sizeof(flux_cli_t));
     if(!client) return NULL;
 
     client->verbose = verbose;
@@ -96,7 +94,7 @@ client_t * client_init(char * broker, int verbose){
     return client;
 }
 
-void client_del(client_t * client){
+void flux_cli_del(flux_cli_t * client){
     if(client->verbose) printf("Client closed.\n");
 
     mdcli_destroy(&client->mdcli);

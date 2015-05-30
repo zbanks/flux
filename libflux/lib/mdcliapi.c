@@ -33,7 +33,7 @@ void s_mdcli_connect_to_broker (mdcli_t *self)
 //  Constructor
 
 mdcli_t *
-mdcli_new (char *broker, int verbose)
+mdcli_new (const char *broker, int verbose)
 {
     assert (broker);
 
@@ -92,7 +92,7 @@ mdcli_set_retries (mdcli_t *self, int retries)
 //  message, or NULL if there was no reply after multiple attempts:
 
 zmsg_t *
-mdcli_send (mdcli_t *self, char *service, zmsg_t **request_p)
+mdcli_send (mdcli_t *self, const char *service, zmsg_t **request_p)
 {
     assert (self);
     assert (request_p);

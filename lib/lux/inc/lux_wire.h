@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define LUX_PACKET_MAX_SIZE 1024
+#define LUX_PACKET_MAX_WORDS (LUX_PACKET_MAX_SIZE/sizeof(uint32_t))
 
 enum __attribute__((__packed__)) lux_command {
     // General Lux Commands
@@ -53,15 +54,15 @@ union lux_command_frame {
         enum lux_command cmd;
 		uint32_t addr;
 		uint16_t len;
-        uint8_t data[];
+        uint8_t data[LUX_PACKET_MAX_SIZE-7];
 	} memseg;
 	struct __attribute__((__packed__)) cmd_carray {
         enum lux_command cmd;
-        uint8_t data[];
+        uint8_t data[LUX_PACKET_MAX_SIZE-1];
 	} carray;
 	struct __attribute__((__packed__)) cmd_warray {
         enum lux_command cmd;
-        uint32_t data[];
+        uint32_t data[LUX_PACKET_MAX_WORDS-1];
 	} warray;
 	struct __attribute__((__packed__)) cmd_csingle {
         enum lux_command cmd;
@@ -76,7 +77,7 @@ union lux_command_frame {
         uint32_t data;
 	} wsingle;
 	struct __attribute__((__packed__)) resp_warray {
-        uint32_t data[LUX_PACKET_MAX_SIZE / sizeof(uint32_t)];
+        uint32_t data[LUX_PACKET_MAX_WORDS];
 	} warray_r;
 	struct __attribute__((__packed__)) resp_csingle {
         uint8_t data;
