@@ -3,7 +3,6 @@ flux
 
 Middlelayer for controlling lux devices &amp; more: "jackd for lights"
 
-
 Building
 ========
 
@@ -41,6 +40,20 @@ sudo make install
 
 Model
 =====
+
+### Project Goals
+
+Flux is intended to connect user interfaces for running visual displays to the physical hardware that controls the lights and other effects.It needs to be low-latency (<1 millisecond) while carrying enough bandwidth for raw (low-resolution) video data.
+
+You should use flux if you're building one (or both!) of the following:
+
+- **Visual devices** such as LED strips, large LED arrays, spotlights, etc. that are intended to be controlled from a computer.
+- **User interfaces** for controlling said displays ("LJ software").
+
+The intent is to add some interoperability between the two layers.
+
+### Design
+
 Flux uses a three-part model: the *broker*, *clients*, and *servers*. 
 
 - **Broker**: There needs to be a single *broker* instance per flux system. The broker can be started with `flux-broker`. Both the clients and servers connect to the broker, who routes messages from clients to the servers that expose the requested devices. 
@@ -102,12 +115,21 @@ The following commands should be implemented for all devices on the server.
 - ``PING`` no body, replies with a single frame consisting of ``"PONG"``.
 - ``INFO`` no body, replies with a single frame with a serialized zhash containing device information.
 
-Usage
-=====
+Example Usage
+=============
 
-- Start the broker: `flux-broker tcp://*:5555`
-- Start the server(s): `./flux-server tcp://localhost:5555`
-- Start the client(s): `./flux-client tcp://localhost:5555`
+- Start the broker: `flux-broker "tcp://*:1365" -v`
+- Start the server(s): `./flux-server "tcp://localhost:1365" "dummy:0" -v`
+- Start the client(s): `./flux-client "tcp://localhost:1365" -v`
 
 (In general, these can start in any order.)
 
+#### flux-server
+`./flux-server` is a [lux](http://github.com/ervanalb/lux) bridge. 
+
+It looks for a serial port in the form `/dev/ttyUSBx`. Before running `./flux-server`, you need to run `python setup_serial.py` to configure the serial port with the correct settings (setting the speed to 3 megabaud, which I can't figure out how to do from C correctly). You may also need to `sudo chown $USER /dev/ttyUSB*`. 
+
+It takes in an optional command line argument, a dummy ID (i.e. `"dummy:0"`). If this argument is passed in, then the server will create a mock device that will respond to `ECHO` `PING` and `INFO` commands but will be otherwise uninteresting. 
+
+#### flux-client
+`flux-client` is an example client which sends some `ECHO` and `INFO` commands to available devices for debugging. 
