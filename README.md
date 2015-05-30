@@ -74,27 +74,27 @@ The Flux C API exposes methods for handling messages under this request-reply mo
 
 ##### Client
 
-On the client side, the primary method ``client_send`` synchronously sends a message and waits for a reply (or timeout/error).
+On the client side, the primary method ``flux_cli_send`` synchronously sends a message and waits for a reply (or timeout/error).
 
-``int client_send(client_t * client, char * destination, char * command, zmsg_t ** body, zmsg_t ** reply)``
+``int flux_cli_send(flux_cli_t * client, const char * destination, const char * command, zmsg_t ** body, zmsg_t ** reply)``
 
-The ``body`` parameter is passed by reference because ``client_send`` takes ownership of it and destroys it. Inversely, ``reply`` should be a reference to a ``NULL`` pointer that will be populated with the response, which you then need to destroy after use.
+The ``body`` parameter is passed by reference because ``flux_cli_send`` takes ownership of it and destroys it. Inversely, ``reply`` should be a reference to a ``NULL`` pointer that will be populated with the response, which you then need to destroy after use.
 
 The return value is ``0`` on success, and ``-1`` on failure (timeout, destination does not exist, "500" response from server, etc.). If the function is successful, the reply is stored in the ``*reply`` variable. 
 
 ##### Server
 
-On the server side, each ``resource_t`` (which corresponds to a device) has a ``request`` function with the following type (``request_fn_t``):
+On the server side, each ``flux_dev_t`` (which corresponds to a device) has a ``request`` function with the following type (``flux_request_fn_t``):
 
-``int request(void * args, const char * command, zmsg_t * body, zmsg_t ** response)``
+``int request(void * args, const char * command, zmsg_t * body, zmsg_t ** reply)``
 
-When the server receives a message for a given device, this method is called. ``args`` is populated from ``resource_t`` and can be used to pass device-specific information. 
+When the server receives a message for a given device, this method is called. ``args`` is populated from ``flux_dev_t`` and can be used to pass device-specific information. 
 
 Do not attempt to free/destroy ``body``.
 
-To indicate success, populate ``response`` with a new (possibly empty) zmsg and return ``0``. The calling context will destory the zmsg after sending it.
+To indicate success, populate ``reply`` with a new (possibly empty) zmsg and return ``0``. The calling context will destory the zmsg after sending it.
 
-To indicate failure, return ``-1``. You can optionally populate ``response`` if you want to send additional information about the error to the client (e.g. an error message).
+To indicate failure, return ``-1``. You can optionally populate ``reply`` if you want to send additional information about the error to the client (e.g. an error message).
 
 ### Common Commands
 
