@@ -12,7 +12,7 @@ int flux_cli_id_list(flux_cli_t * client, const char * prefix, flux_id_t ** ids)
     assert(client);
 
     zmsg_t * list_msg = zmsg_new();
-    zmsg_t * reply_msg;
+    zmsg_t * reply_msg = NULL;
 
     if(flux_cli_send(client, "mmi.list", prefix ? prefix : "", &list_msg, &reply_msg)) goto fail;
     if(!reply_msg) goto fail;
@@ -44,7 +44,7 @@ int flux_cli_id_check(flux_cli_t * client, const char * prefix){
     assert(prefix);
 
     zmsg_t * list_msg = zmsg_new();
-    zmsg_t * reply_msg;
+    zmsg_t * reply_msg = NULL;
 
     int rc = flux_cli_send(client, "mmi.service", prefix, &list_msg, &reply_msg);
     zmsg_destroy(&reply_msg);
@@ -75,7 +75,6 @@ int flux_cli_send(flux_cli_t * client, const char * name, const char * cmd, zmsg
 
 flux_cli_t * flux_cli_init(const char * broker, int verbose){
     flux_cli_t * client;
-
     if(verbose) printf("Client starting on %s...\n", broker);
 
     client = zmalloc(sizeof(flux_cli_t));
@@ -100,4 +99,3 @@ void flux_cli_del(flux_cli_t * client){
     mdcli_destroy(&client->mdcli);
     free(client);
 }
-

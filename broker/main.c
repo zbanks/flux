@@ -1,14 +1,19 @@
 #include "mdbroker.h"
 #include <czmq.h>
 
-#define BROKER_PORT "1365"
+#define DEFAULT_BROKER_URL "tcp://*:1365"
 
 int main (int argc, char *argv [])
 {
-    int verbose = (argc > 1 && streq (argv [1], "-v"));
+    char * broker_url = DEFAULT_BROKER_URL;
+    int verbose = 0;
+
+    argv++; argc--;
+    if(argc) broker_url = *argv++, argc--;
+    if(argc) verbose = streq(*argv++, "-v"), argc--;
 
     broker_t *self = s_broker_new (verbose);
-    s_broker_bind (self, "tcp://*:" BROKER_PORT);
+    s_broker_bind (self, broker_url);
 
     //  Get and process messages forever or until interrupted
     while (true) {

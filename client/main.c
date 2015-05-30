@@ -9,11 +9,11 @@ static flux_cli_t * client;
 static int verbose = 0;
 
 int main(int argc, char ** argv){
-    char * broker_url;
-    if(argc >= 2)
-        broker_url = argv[1];
-    else
-        broker_url = DEFAULT_BROKER_URL;
+    char * broker_url = DEFAULT_BROKER_URL;
+
+    argv++; argc--;
+    if(argc) broker_url = *argv++, argc--;
+    if(argc) verbose = streq(*argv++, "-v"), argc--;
 
     client = flux_cli_init(broker_url, verbose); 
 

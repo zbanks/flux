@@ -97,10 +97,9 @@ fail:
 }
 
 int main(int argc, char ** argv){
-    if(argc >= 2)
-        broker_url = argv[1];
-    else
-        broker_url = DEFAULT_BROKER_URL;
+    argv++; argc--;
+    if(argc) broker_url = *argv++, argc--;
+    if(argc) verbose = streq(*argv++, "-v"), argc--;
 
     for(int i = 0; i < n_lux_ids; i++){
         snprintf(devices[i].name, 15, "lux:%08X", lux_ids[i]);
