@@ -1,6 +1,7 @@
 #include "mdbroker.h"
-#include "broker.h"
 #include <czmq.h>
+
+#define BROKER_PORT "1365"
 
 int main (int argc, char *argv [])
 {
