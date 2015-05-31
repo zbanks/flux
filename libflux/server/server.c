@@ -13,7 +13,7 @@ struct _flux_dev {
 
 #define N_MAX_DEVICES 64
 
-static flux_dev_t devices[N_MAX_DEVICES];
+static flux_dev_t devices[N_MAX_DEVICES] = {{0}};
 static int n_devices = 0;
 static zpoller_t * poller = NULL;
 static int poll_interval = 500;
@@ -107,10 +107,6 @@ flux_dev_t * flux_dev_init(const char * broker, const flux_id_t name, request_fn
         }
         return NULL;
     }
-
-    // We can't guarentee that devices[] is initialized to 0, but n_devices is.
-    // If n_devices == 0, then we don't care about any of the data in devices[]
-    if(n_devices == 0) memset(devices, 0, sizeof(flux_dev_t) * N_MAX_DEVICES);
 
     // Find the first open device. A device is open if the worker pointer is NULL
     flux_dev_t * device = devices;

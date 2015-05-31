@@ -8,7 +8,7 @@ Model
 
 ### Project Goals
 
-Flux is intended to connect user interfaces for running visual displays to the physical hardware that controls the lights and other effects.It needs to be low-latency (<1 millisecond) while carrying enough bandwidth for raw (low-resolution) video data.
+Flux is intended to connect user interfaces for running visual displays to the physical hardware that controls the lights and other effects.It needs to be low-latency (millisecond) while carrying enough bandwidth for raw (low-resolution) video data.
 
 You should use flux if you're building one (or both!) of the following:
 
@@ -23,7 +23,7 @@ Flux uses a three-part model: the *broker*, *clients*, and *servers*.
 
 - **Broker**: There needs to be a single *broker* instance per flux system. The broker can be started with `flux-broker`. Both the clients and servers connect to the broker, who routes messages from clients to the servers that expose the requested devices. 
 
-- **Server**: Each server process can expose one or more *devices* to be controlled, each with a global, semantic, and unique ID (i.e. `"leds:00000001"`).
+- **Server**: Each server process can expose one or more *devices* to be controlled, each with a global, semantic, and unique ID (e.g. `"leds:00000001"`).
 
 - **Client**: Each client process can control any of the devices exposed by servers that the broker knows about. 
 

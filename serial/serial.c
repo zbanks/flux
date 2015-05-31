@@ -228,6 +228,8 @@ int serial_set_attribs (int fd, int speed)
         cfsetispeed(&tty, speed ? speed : 0010015);
         cfsetospeed(&tty, speed ? speed : 0010015);
 
+        //ioctl(3, SNDCTL_TMR_TIMEBASE or SNDRV_TIMER_IOCTL_NEXT_DEVICE or TCGETS, {c_iflags=0, c_oflags=0x4, c_cflags=0x1cbd, c_lflags=0, c_line=0, c_cc[VMIN]=1, c_cc[VTIME]=2, c_cc="\x03\x1c\x7f\x15\x04\x02\x01\x00\x11\x13\x1a\x00\x12\x0f\x17\x16\x00\x00\x00"}) = 0
+
         tty.c_cflag &= ~CSIZE;     // 8-bit chars
         tty.c_cflag |= CS8;     // 8-bit chars
         tty.c_cflag |= (CLOCAL | CREAD);

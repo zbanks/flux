@@ -1,8 +1,8 @@
 #include "lib/err.h"
 #include "serial/serial.h"
 
-#include <flux.h>
 #include <czmq.h>
+#include <flux.h>
 
 struct device {
     int id;
@@ -23,8 +23,9 @@ static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
 
 static struct device devices[N_LUX_IDS] = {{0}};
 static int serial_available = 0;
+static int write_only = 0;
 static int verbose = 0;
-static char * broker_url;
+static char * broker_url = DEFAULT_BROKER_URL;
 
 int dummy_request(void * args, const char * cmd, zmsg_t ** body, zmsg_t ** reply){
     UNUSED(args);
@@ -67,7 +68,7 @@ int lux_request(void * args, const char * cmd, zmsg_t ** msg, zmsg_t ** reply){
             struct lux_frame lf;
             lf.data.carray.cmd = CMD_FRAME;
             lf.destination = device->id;
-            lf.length = device->length * 3;
+            lf.length = device->length * 3 + 1;
             memcpy(lf.data.carray.data, zframe_data(pixels), device->length * 3);
             rc = lux_tx_packet(&lf);
         }else rc = -1;
@@ -121,18 +122,49 @@ fail:
     }
 }
 
+static void print_help(){
+    printf("Usage: flux-server [-b broker_socket] [-d dummy_id] [-r] [-v]\n"
+           " -b broker_socket  Set the ZMQ socket to connect to the broker.\n"
+           "                   Default: '" DEFAULT_BROKER_URL "'.\n"
+           " -d dummy_id       Create a 'dummy' mock device with the given id.\n"
+           " -r                Lux write-only. Do not attempt to read from the lux bus.\n"
+           " -v                Verbose\n");
+}
+
 
 int main(int argc, char ** argv){
     char * dummy_name = NULL;
     flux_dev_t * dummy_dev = NULL;
 
-    argv++; argc--;
-    if(argc) broker_url = *argv++, argc--;
-    if(argc) dummy_name = *argv++, argc--;
-    if(argc) verbose = streq(*argv++, "-v"), argc--;
-    if(dummy_name && streq(dummy_name, "-v")){
-        verbose = 1;
-        dummy_name = NULL;
+    char ** arg_dest = NULL;
+    while(--argc){
+        argv++; // Chomp the next argument. We ignore the first argument (the program name)
+        if(argv[0][0] == '-'){
+            if(arg_dest){
+                print_help();
+                fprintf(stderr, "Expected argument value\n");
+                return -1;
+            }
+            switch(argv[0][1]){
+                case 'b': arg_dest = &broker_url; break;
+                case 'd': arg_dest = &dummy_name; break;
+                case 'v': verbose = 1; break;
+                case 'r': write_only = 1; break;
+                case 'h': print_help(); return 0;
+                default:
+                    print_help();
+                    fprintf(stderr, "Invalid argument '%s'\n", *argv);
+                    return -1;
+            }
+        }else{
+            if(!arg_dest){
+                print_help();
+                fprintf(stderr, "Invalid argument '%s'\n", *argv);
+                return -1;
+            }
+            *arg_dest = *argv;
+            arg_dest = NULL;
+        }
     }
 
     if(dummy_name) dummy_dev = flux_dev_init(broker_url, dummy_name, &dummy_request, NULL);

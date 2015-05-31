@@ -30,7 +30,13 @@ int main(int argc, char ** argv){
                 zmsg_pushstr(lmsg, "Hello new protocol!");
 
                 zmsg_t * reply = NULL;
+                struct timespec tp;
+                clock_gettime(CLOCK_REALTIME, &tp);
+                long nsec = -tp.tv_nsec;
                 int r = flux_cli_send(client, ids[i], "ECHO", &lmsg, &reply);
+                clock_gettime(CLOCK_REALTIME, &tp);
+                nsec += tp.tv_nsec;
+                printf("echo response time: %ld\n", nsec);
                 if(!r){
                     char * s = zframe_strdup(zmsg_first(reply));
                     printf("response: '%s'\n", s);

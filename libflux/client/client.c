@@ -87,7 +87,7 @@ flux_cli_t * flux_cli_init(const char * broker, int verbose){
         return NULL;
     }
 
-    mdcli_set_timeout(client->mdcli, 10);
+    mdcli_set_timeout(client->mdcli, 100);
     mdcli_set_retries(client->mdcli, 3);
 
     return client;
