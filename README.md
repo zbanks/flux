@@ -84,7 +84,7 @@ Example Usage
 =============
 
 - Start the broker: `flux-broker "tcp://*:1365" -v`
-- Start the server(s): `./flux-server "tcp://localhost:1365" "dummy:0" -v`
+- Start the server(s): `./flux-server -b "tcp://localhost:1365" -d "dummy:0" -v`
 - Start the client(s): `./flux-client "tcp://localhost:1365" -v`
 
 (In general, these can start in any order.)
@@ -94,7 +94,9 @@ Example Usage
 
 It looks for a serial port in the form `/dev/ttyUSBx`. Before running `./flux-server`, you need to run `python setup_serial.py` to configure the serial port with the correct settings (setting the speed to 3 megabaud, which I can't figure out how to do from C correctly). You may also need to `sudo chown $USER /dev/ttyUSB*`. 
 
-It takes in an optional command line argument, a dummy ID (i.e. `"dummy:0"`). If this argument is passed in, then the server will create a mock device that will respond to `ECHO` `PING` and `INFO` commands but will be otherwise uninteresting. 
+It takes in an optional command line argument, a dummy ID (i.e. `-d "dummy:0"`). If this argument is passed in, then the server will create a mock device that will respond to `ECHO` `PING` and `INFO` commands but will be otherwise uninteresting. 
+
+Due to hardware issues (unreliable receive), the server can operate in *write-only* mode by passing in the `-r` flag. In  this mode, no data is read over the lux bus, and frames are sent blindly to all configured addresses.
 
 #### flux-client
 `flux-client` is an example client which sends some `ECHO` and `INFO` commands to available devices for debugging. 

@@ -13,10 +13,16 @@
 #include "lux.h"
 #include "serial/serial.h"
 
-int ser;
 static char lux_is_transmitting;
 static crc_t crc;
 int serial_set_attribs (int, int);
+
+// Currently, there is only 1 port
+// This will be expanded
+static ser_t port = {
+    .fd = -1,
+    .write_only = 0,
+};
 
 uint8_t match_destination(uint8_t* dest){
     uint32_t addr = *(uint32_t *)dest;
@@ -26,52 +32,59 @@ uint8_t match_destination(uint8_t* dest){
 void rx_packet() {
 }
 
-char serial_init(){
+ser_t * serial_init(int write_only){
     /* 
-     * Initialize the serial port (if it exists)
-     * Returns 0 if successful
-     * Returns nonzero if there are no available ports or there is an error
+     * Initialize a new serial port (if an additional one exists)
+     * Returns a ser_t instance if successful
+     * Returns NULL if there are no available ports or there is an error
      */
+    if(port.fd >= 0) return NULL;
+
     char dbuf[32];
     for(int i = 0; i < 9; i++){
         sprintf(dbuf, "/dev/ttyUSB%d", i);
-        ser = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC);
-        if(ser > 0){
-            printf("Found output on '%s', %d\n", dbuf, ser);
+        port.fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC);
+        if(port.fd >= 0){
+            printf("Found output on '%s', %d\n", dbuf, port.fd);
             break;
         }
-        //if(ser < 0) FAIL("error opening port: %d", ser);
     }
+    if(port.fd < 0) return NULL;
+
+    port.write_only = write_only;
+    if(write_only) printf("Opened serial in write_only mode.\n");
 
     lux_fn_match_destination = &match_destination;
     lux_fn_rx = &rx_packet;
     lux_init();
 
-    if(ser > 0){
-        /*
-        serial_set_attribs(ser, 3000000);
-        */
-        return 1;
+    return &port;
+}
+
+void serial_close(ser_t * s){
+    if(s){
+        if(s->fd >= 0) close(s->fd);
+        s->fd = -1;
     }
-    return 0;
 }
 
-void serial_close(){
-    if(ser) close(ser);
-}
-
-char lux_command_response(struct lux_frame *cmd, struct lux_frame *response, int timeout_ms){
+char lux_command_response(ser_t * s, struct lux_frame *cmd, struct lux_frame *response, int timeout_ms){
     /* 
      * Transmits command `*cmd`, and waits for response and saves it to `*response`
      * Returns 0 on success 
      */
     char r;
+    //TODO:port
+    if(s->write_only){
+        fprintf(stderr, "Attempted to read response on write_only port.\n");
+        return -50;
+    }
     
-    if((r = lux_tx_packet(cmd)))
+    if((r = lux_tx_packet(s, cmd)))
         return r;
 
     if(response){
-        if((r = lux_rx_packet(response, timeout_ms)))
+        if((r = lux_rx_packet(s, response, timeout_ms)))
             return r;
 
         if(response->destination != 0)
@@ -80,15 +93,20 @@ char lux_command_response(struct lux_frame *cmd, struct lux_frame *response, int
     return 0;
 }
 
-char lux_command_ack(struct lux_frame *cmd, int timeout_ms){
+char lux_command_ack(ser_t * s, struct lux_frame *cmd, int timeout_ms){
     /*
      * Transmits command `*cmd`, and waits for ack response
      * Returns 0 on success
      */
     char r;
     struct lux_frame response;
+    //TODO
+    if(s->write_only){
+        fprintf(stderr, "Attempted to read response on write_only port.\n");
+        return -50;
+    }
 
-    if((r = lux_command_response(cmd, &response, timeout_ms)))
+    if((r = lux_command_response(s, cmd, &response, timeout_ms)))
         return r;
 
     if(response.destination != 0)
@@ -100,11 +118,13 @@ char lux_command_ack(struct lux_frame *cmd, int timeout_ms){
     return response.data.raw[0];
 }
 
-char lux_tx_packet(struct lux_frame *cmd){
+char lux_tx_packet(ser_t * s, struct lux_frame *cmd){
     /*
      * Transmits command `*cmd`
      * Returns 0 on success
      */
+    //TODO
+    UNUSED(s);
     lux_hal_disable_rx();
 
     if(!cmd)
@@ -122,12 +142,17 @@ char lux_tx_packet(struct lux_frame *cmd){
     return 0;
 }
 
-char lux_rx_packet(struct lux_frame *response, int timeout_ms){
+char lux_rx_packet(ser_t * s, struct lux_frame *response, int timeout_ms){
     /* 
      * Attempts to recieve a packet (with a timeout)
      * Puts recieved packet into `*response`
      * Returns 0 on success
      */
+    //TODO
+    if(s->write_only){
+        fprintf(stderr, "Attempted to read response on write_only port.\n");
+        return -50;
+    }
 
     for(int j = 0; j <= timeout_ms; j++){
         for(int i = 0; i < 1100; i++)
@@ -155,20 +180,22 @@ char lux_rx_packet(struct lux_frame *response, int timeout_ms){
 
 void lux_hal_enable_rx(){
     lux_is_transmitting = 0;
-#ifndef LUX_WRITE_ONLY
-    const int r = TIOCM_RTS;
-    usleep(2000);
-    ioctl(ser, TIOCMBIS, &r);
-#endif
+    //TODO:port
+    if(!port.write_only){
+        const int r = TIOCM_RTS;
+        usleep(2000);
+        ioctl(port.fd, TIOCMBIS, &r);
+    }
 }
 
 void lux_hal_disable_rx(){
     const int r = TIOCM_RTS;
     lux_is_transmitting = 1;
-    ioctl(ser, TIOCMBIC, &r);
-#ifndef LUX_WRITE_ONLY
-    usleep(2000);
-#endif
+    ioctl(port.fd, TIOCMBIC, &r);
+    //TODO:port
+    if(!port.write_only){
+        usleep(2000);
+    }
 }
 
 void lux_hal_enable_tx(){}
@@ -176,13 +203,15 @@ void lux_hal_disable_tx(){}
 
 int16_t lux_hal_bytes_to_read(){
     int bytes_avail;
-    ioctl(ser, FIONREAD, &bytes_avail);
+    //TODO:port
+    ioctl(port.fd, FIONREAD, &bytes_avail);
     return bytes_avail;
 }
 
 uint8_t lux_hal_read_byte(){
     uint8_t byte = 0;
-    if(!read(ser, &byte, 1))
+    //TODO:port
+    if(!read(port.fd, &byte, 1))
         printf("Error writing byte to serial port\n");
     return byte;
 }
@@ -192,12 +221,14 @@ int16_t lux_hal_bytes_to_write(){
 }
 
 void lux_hal_write_byte(uint8_t byte){
-    if(!write(ser, &byte, 1))
+    //TODO:port
+    if(!write(port.fd, &byte, 1))
         printf("Error writing byte to serial port\n");
 }
 
 uint8_t lux_hal_tx_flush(){
-    tcflush(ser, TCOFLUSH);
+    //TODO:port
+    tcflush(port.fd, TCOFLUSH);
     return 1;
 }
 
