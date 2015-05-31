@@ -66,12 +66,17 @@ int lux_request(void * args, const char * cmd, zmsg_t ** msg, zmsg_t ** reply){
         zframe_t * pixels = zmsg_pop(*msg);
         if(zframe_size(pixels) == device->length * 3){
             struct lux_frame lf;
+
+            memcpy(lf.data.carray.data, zframe_data(pixels), device->length * 3);
+
             lf.data.carray.cmd = CMD_FRAME;
             lf.destination = device->id;
-            lf.length = device->length * 3 + 1;
-            memcpy(lf.data.carray.data, zframe_data(pixels), device->length * 3);
+            lf.length = (device->length * 3) + 1;
             rc = lux_tx_packet(&lf);
-        }else rc = -1;
+        }else{
+            rc = -1;
+        }
+
         zframe_destroy(&pixels);
     }else{
         rc = -1;
@@ -90,7 +95,7 @@ static void enumerate_devices(){
         cmd.destination = devices[i].id;
         cmd.length = 1;
 
-        if((r = lux_command_response(&cmd, &resp, 2000))) goto fail;
+        if((r = lux_command_response(&cmd, &resp, 40))) goto fail;
 
         printf("Found light strip %d @0x%08x: '%s'\n", i, cmd.destination, resp.data.raw);
         strncpy(devices[i].id_str, (char *) resp.data.raw, 255);
@@ -98,10 +103,10 @@ static void enumerate_devices(){
         devices[i].bus = 1;
 
         cmd.data.raw[0] = CMD_GET_LENGTH;
-        if((r = lux_command_response(&cmd, &resp, 2000))) goto fail;
+        if((r = lux_command_response(&cmd, &resp, 40))) goto fail;
 
         printf("length: %d\n", resp.data.ssingle_r.data);
-        devices[i].length = resp.length;
+        devices[i].length = resp.data.ssingle_r.data;
         snprintf(devices[i].length_str, 4, "%d", resp.data.ssingle_r.data);
         zhash_update(devices[i].info, "length", devices[i].length_str);
         devices[i].bus = 1;
