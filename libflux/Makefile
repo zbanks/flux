@@ -1,15 +1,14 @@
 PREFIX = /usr/local
 CC = gcc
 
-C_SRC = $(wildcard lib/*.c)
-C_SRC += $(wildcard server/*.c)
-C_SRC += $(wildcard client/*.c)
+#C_SRC = $(wildcard lib/*.c)
+C_SRC = server.c client.c
 
 OBJECTS = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS:.o=.d)
 
 INC = -I. -L/usr/local/lib -L/usr/lib
-LIB = -lzmq -lczmq
+LIB = -lnanomsg
 
 -include $(DEPS)
 %.d : %.c
