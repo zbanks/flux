@@ -16,7 +16,7 @@ LIB = -lnanomsg
 
 # Assembler, compiler, and linker flags
 PEDANTIC = -Wpedantic
-CFLAGS  = -g -O3 $(INC) -Wall -Wextra -Werror -std=c99 -fPIC
+CFLAGS  = -g -O3 $(INC) -Wall -Wextra -Werror -std=gnu99 -fPIC
 LFLAGS  = $(CFLAGS)
 CFLAGS += $(PEDANTIC)
 
