@@ -1,7 +1,10 @@
 #include "lib/err.h"
 
 #include <flux.h>
-#include <czmq.h>
+#include <unistd.h> // sleep
+#include <time.h>
+#include <string.h> 
+#include <nanomsg/nn.h> 
 
 #define DEFAULT_BROKER_URL "tcp://localhost:1365"
 
@@ -13,63 +16,55 @@ int main(int argc, char ** argv){
 
     argv++; argc--;
     if(argc) broker_url = *argv++, argc--;
-    if(argc) verbose = streq(*argv++, "-v"), argc--;
+    if(argc) verbose = !strcmp(*argv++, "-v"), argc--;
 
     client = flux_cli_init(broker_url, verbose); 
 
     while(1){
-        flux_id_t * ids;
-        int n = flux_cli_id_list(client, "lux:", &ids);
+        flux_id_t * ids = NULL;
+        int n = flux_cli_id_list(client, &ids);
         if(n >= 0){
             printf("\n%d Available devices:\n", n);
             for(int i = 0; i < n; i++){
                 printf("    %.16s\n", ids[i]);
 
-                zmsg_t * lmsg;
-                lmsg = zmsg_new();
-                zmsg_pushstr(lmsg, "Hello new protocol!");
-
-                zmsg_t * reply = NULL;
+                char * reply = NULL;
                 struct timespec tp;
                 clock_gettime(CLOCK_REALTIME, &tp);
                 long nsec = -tp.tv_nsec;
-                int r = flux_cli_send(client, ids[i], "ECHO", &lmsg, &reply);
+                int r = flux_cli_send(client, ids[i], "ECHO", "Testing 123!", 16, &reply);
                 clock_gettime(CLOCK_REALTIME, &tp);
                 nsec += tp.tv_nsec;
-                printf("echo response time: %ld\n", nsec);
-                if(!r){
-                    char * s = zframe_strdup(zmsg_first(reply));
-                    printf("response: '%s'\n", s);
-                    free(s);
-                    zmsg_destroy(&reply);
+                printf("echo response time: %ld nanoseconds\n", nsec);
+                if(r && *reply){
+                    printf("response: '%.*s'\n", r, reply);
                 }else{
                     printf("send_lux error\n");
                     break;
                 }
-                zclock_sleep(100); 
+                sleep(1);
 
-                lmsg = zmsg_new();
                 reply = NULL;
-                r = flux_cli_send(client, ids[i], "INFO", &lmsg, &reply);
-                if(!r){
-                    zhash_t * info = zhash_unpack(zmsg_first(reply));
+                r = flux_cli_send(client, ids[i], "INFO", "", 0, &reply);
+                if(r && reply){
+                    //zhash_t * info = zhash_unpack(zmsg_first(reply));
                     printf("info:\n");
-                    zhash_save(info, "/dev/stdout");
+                    printf("%.*s", r, reply);
+                    //zhash_save(info, "/dev/stdout");
                     printf("\n");
                 }else{
                     printf("send_lux error\n");
                     break;
                 }
 
-                zmsg_destroy(&reply);
-                zclock_sleep(300); 
+                sleep(1); 
             }
             free(ids);
         }else{
-            printf("Error from broker\n");
+            printf("Error from broker: %s\n", nn_strerror(errno));
             break;
         }
-        zclock_sleep(1000);
+        sleep(1);
     }
 
     flux_cli_del(client);

@@ -7,7 +7,7 @@
 #include <nanomsg/survey.h>
 
 #define DEFAULT_CLIENT_URL "tcp://*:1365"
-#define DEFAULT_SERVER_URL "tcp://*:1365"
+#define DEFAULT_SERVER_URL "tcp://*:1366"
 
 struct flux_server;
 struct flux_server {
@@ -80,6 +80,8 @@ int main (int argc, char *argv [])
 
     int surv_sock = nn_socket(AF_SP, NN_SURVEYOR);
     assert(surv_sock >= 0);
+    int timeout = 1000;
+    assert(nn_setsockopt(surv_sock, NN_SURVEYOR, NN_SURVEYOR_DEADLINE, &timeout, sizeof(timeout)) >= 0);
     assert(nn_bind(surv_sock, server_url));
 
     struct nn_pollfd pollfds[2] = {
@@ -90,15 +92,26 @@ int main (int argc, char *argv [])
         },
         {
             .fd = surv_sock,
-            .events = NN_POLLIN,
+            .events = 0,
             .revents = 0
         },
     };
 
+    printf("Running broker.\n"
+           "Connect clients to '%s'\n"
+           "      & servers to '%s'.\n", client_url, server_url);
+
     //  Get and pass messages back and forth forever (until interrupted)
     while (1) {
+        pollfds[0].revents = 0;
+        pollfds[1].revents = 0;
         int np = nn_poll(pollfds, 2, 1000);
         if(np < 0) break;
+        if(np == 0 && !(pollfds[1].events & NN_POLLIN)){
+            if(verbose) printf("triggering ID poll...\n");
+            assert(2 == nn_send(surv_sock, "ID", 2, 0)); // TODO: only one survey at a time
+            pollfds[1].events |= NN_POLLIN;
+        }
 
         if(pollfds[0].revents & NN_POLLIN){
             assert(pollfds[0].fd == rep_sock);
@@ -108,6 +121,7 @@ int main (int argc, char *argv [])
                 if(memcmp(msg, "ID", 2) == 0){
                     assert((int) id_response_size == nn_send(rep_sock, id_response, id_response_size, 0));
                     assert(2 == nn_send(surv_sock, "ID", 2, 0)); // TODO: only one survey at a time
+                    pollfds[1].events |= NN_POLLIN;
                 }
             }
         }
@@ -116,24 +130,26 @@ int main (int argc, char *argv [])
             char * resp;
             assert(pollfds[1].fd == surv_sock);
             int resp_size = nn_recv(surv_sock, &resp, NN_MSG, 0);
-            if(resp_size == ETIMEDOUT){
-
+            // XXX Bug in nanomsg: if no clients are available; it returns EFSM
+            if(errno == ETIMEDOUT || errno == EFSM){
                 char * iresp = NULL;
                 char * iptr = NULL;
                 size_t isize = 0;
+                size_t n_connected = 0;
                 struct flux_server * serv = survey_response;
                 while(serv){
                     isize += serv->id_size + 1;
                     serv = serv->next;
+                    n_connected++;
                 }
-                iresp = malloc(isize);
+                iptr = iresp = malloc(isize);
                 assert(iresp);
 
                 serv = survey_response;
                 while(serv){
                     memcpy(iptr, serv->id_str, serv->id_size);
-                    iptr += resp_size;
-                    *iptr++ = '\n';
+                    iptr += serv->id_size;
+                    *(iptr++) = '\n';
                     serv = serv->next;
                 }
 
@@ -148,8 +164,14 @@ int main (int argc, char *argv [])
 
                 // Send next survey
                 // assert(2 == nn_send(surv_sock, "ID", 2));
+                pollfds[1].events &= ~NN_POLLIN;
+                if(verbose) printf("Recieved %u survey responses\n", (unsigned int) n_connected);
             }else if(resp_size < 0){
-                if(verbose) fprintf(stderr, "Error from survey: %d\n", resp_size);
+                if(verbose) fprintf(stderr, "Error from survey: %s\n", nn_strerror(errno));
+                // Stop trying to survey
+                free(survey_response);
+                survey_response = NULL;
+                pollfds[1].events &= ~NN_POLLIN;
             }else{
                 struct flux_server * serv = malloc(sizeof(serv));
                 assert(serv);
@@ -163,11 +185,13 @@ int main (int argc, char *argv [])
                 
                 // Append to survey result list
                 serv->next = survey_response;
-                survey_response = serv->next;
+                survey_response = serv;
             }
         }
 
     }
+
+    if(verbose) printf("Shutting down...\n");
 
     nn_shutdown(rep_sock, 0);
     nn_shutdown(surv_sock, 0);

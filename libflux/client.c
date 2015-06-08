@@ -60,16 +60,23 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
             while(sptr[j] != '\t' && sptr[j] != '\n') j++;
             assert(sptr[j] == '\t');
             sptr += j;
-            *sptr++ = '\0';
+            *(sptr++) = '\0';
             servers[i].ids = (flux_id_t *) sptr;
-            while(sptr[j+1] != '\n') j++;
+            for(j = 0; sptr[j] != '\n'; j++);
             servers[i].n_ids = j / sizeof(flux_id_t);
             assert(servers[i].n_ids * sizeof(flux_id_t) == (size_t) j);
             sptr += j;
-            *sptr++ = '\0';
+            *(sptr++) = '\0';
+
+            servers[i].sock = nn_socket(AF_SP, NN_REQ);
+            assert(servers[i].sock >= 0);
+            assert(nn_connect(servers[i].sock, servers[i].rep_url) >= 0);
         }
     }
 
+    for(size_t i = 0; i < client->n_servers; i++){
+        nn_shutdown(client->servers[i].sock, 0);
+    }
     client->n_servers = n;
     if(client->servers) free(client->servers);
     client->servers = servers;
@@ -141,6 +148,7 @@ found_dest_match:
     char * resp;
     int resp_size = nn_recv(req_sock, &resp, NN_MSG, 0);
     assert(resp_size >= 0);
+    printf("Recieved %d bytes\n", resp_size);
 
     // Repackage response so it can be free'd
     *reply = malloc(resp_size);
@@ -164,9 +172,9 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
     client->servers = NULL;
 
     // Bind to broker SURVEYOR socket
-    client->broker_sock =  nn_socket(AF_SP, NN_SURVEYOR);
+    client->broker_sock =  nn_socket(AF_SP, NN_REQ);
     assert(client->broker_sock >= 0);
-    assert(nn_bind(client->broker_sock, broker_url) >= 0);
+    assert(nn_connect(client->broker_sock, broker_url) >= 0);
 
     return client;
 }

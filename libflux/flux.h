@@ -10,7 +10,8 @@ typedef char flux_cmd_t[16];
 struct _flux_dev;
 typedef struct _flux_dev flux_dev_t;
 
-typedef int (*request_fn_t)(void * args, const flux_cmd_t cmd, char * body, char ** reply);
+typedef int (*request_fn_t)(void * args, const flux_cmd_t cmd, char * body, int body_size, char ** reply); 
+
 
 int flux_server_init(const char * broker_url, const char * rep_url, int verbose);
 void flux_server_close();

@@ -36,7 +36,7 @@ static int rep_sock = -1;
 static char * rep_url = NULL;
 static char * id_response = NULL;
 static int id_response_size = 0;
-static struct nn_pollfd pollfd[2] = {{0}};
+static struct nn_pollfd pollfd[2];
 
 void flux_server_set_poll_interval(int interval){
     poll_interval = interval;
@@ -49,12 +49,12 @@ int flux_server_init(const char * broker_url, const char * _rep_url, int _verbos
     // Connect to broker as RESPONDENT
     broker_sock = nn_socket(AF_SP, NN_RESPONDENT);
     assert(broker_sock >= 0);
-    assert(nn_bind(broker_sock, broker_url) >= 0);
+    assert(nn_connect(broker_sock, broker_url) >= 0);
 
     // Set up REP socket
     rep_sock = nn_socket(AF_SP, NN_REP);
     assert(rep_sock >= 0);
-    assert(nn_bind(rep_sock, rep_url) >= 0);
+    assert(nn_bind(rep_sock, _rep_url) >= 0);
 
     // Set up poll struct to listen for incoming packets
     pollfd[0].fd = broker_sock;
@@ -99,8 +99,10 @@ void flux_server_close(){
 }
 
 int flux_server_poll(){
+    assert(pollfd[0].events | pollfd[1].events);
     // Blocks until an event happens
     int res = nn_poll(pollfd, 2, poll_interval);
+    if(verbose) printf("poll:%d\n", res);
     if(res <= 0) return res; // Return -1 on error; 0 if timeout
 
     if(pollfd[0].revents & NN_POLLIN){
@@ -132,6 +134,7 @@ int flux_server_poll(){
             char * msg_id = msg;
             char * msg_cmd = msg + sizeof(flux_id_t);
             char * msg_body = msg + sizeof(flux_id_t) + sizeof(flux_cmd_t);
+            msg_size -= sizeof(flux_id_t) + sizeof(flux_cmd_t);
 
             for(int i = 0; i < N_MAX_DEVICES; i++){
                 if(!devices[i].exists) continue;
@@ -139,10 +142,12 @@ int flux_server_poll(){
 
                 // TODO: pass on errors from `request(...)` 
                 char * rep_body;
-                int rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, &rep_body);
+                int rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, msg_size, &rep_body);
                 if(rep_size >= 0){
+                    printf("Sending %d bytes\n", rep_size);
                     int rep_sent = nn_send(rep_sock, rep_body, rep_size, 0);
                     assert(rep_sent == (int) rep_size);
+                    //TODO XXX free(rep_body)???
                 }
             }
             nn_freemsg(msg);
@@ -153,6 +158,7 @@ int flux_server_poll(){
 
 static void rebuild_id_response(){
     // Reconfigure available ids
+    assert(rep_url);
     free(id_response);
     size_t rep_size = strlen(rep_url);
     id_response_size = rep_size + n_devices * sizeof(flux_id_t) + 1;
@@ -161,7 +167,7 @@ static void rebuild_id_response(){
 
     memcpy(iptr, rep_url, rep_size); 
     iptr += rep_size;
-    *iptr++ = '|';
+    *iptr++ = '\t';
     for(int i = 0; i < N_MAX_DEVICES; i++){
         if(!devices[i].exists) continue;
         memcpy(iptr, devices[i].name, sizeof(flux_id_t)); 

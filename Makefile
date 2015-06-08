@@ -22,11 +22,11 @@ OBJECTS_ALL = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS_ALL:.o=.d)
 
 INC  = -I.  -Ilib/lux/inc -Ilibflux -Llibflux -L/usr/local/lib -L/usr/lib
-LIB  = -lczmq -lzmq -lflux
+LIB  = -lflux -lnanomsg
 
 # Assembler, compiler, and linker flags
 PEDANTIC = -Wpedantic
-CFLAGS  = -g -O3 $(INC) -Wall -Wextra -Werror -std=gnu99 # -DLUX_WRITE_ONLY
+CFLAGS  = -g -O0 $(INC) -Wall -Wextra -Werror -std=gnu99 # -DLUX_WRITE_ONLY
 LFLAGS  = $(CFLAGS)
 CFLAGS += $(PEDANTIC)
 
