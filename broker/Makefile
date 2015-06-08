@@ -1,13 +1,13 @@
 PREFIX = /usr/local
 CC = gcc
 
-C_SRC = $(wildcard *.c)
+C_SRC = main.c
 
 OBJECTS = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS:.o=.d)
 
 INC = -I. -L/usr/local/lib -L/usr/lib
-LIB = -lzmq -lczmq
+LIB = -lnanomsg
 
 -include $(DEPS)
 %.d : %.c

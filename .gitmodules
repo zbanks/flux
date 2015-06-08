@@ -1,9 +1,0 @@
-[submodule "czmq"]
-	path = czmq
-	url = https://github.com/zeromq/czmq
-[submodule "libsodium"]
-	path = libsodium
-	url = git://github.com/jedisct1/libsodium.git
-[submodule "libzmq"]
-	path = libzmq
-	url = git://github.com/zeromq/libzmq.git

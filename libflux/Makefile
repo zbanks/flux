@@ -2,7 +2,7 @@ PREFIX = /usr/local
 CC = gcc
 
 #C_SRC = $(wildcard lib/*.c)
-C_SRC = server.c client.c
+C_SRC = broker.c server.c client.c
 
 OBJECTS = $(C_SRC:.c=.o)
 DEPS = $(OBJECTS:.o=.d)

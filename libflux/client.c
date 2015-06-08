@@ -1,7 +1,7 @@
 #include "flux.h"
 #include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
 #include <nanomsg/survey.h>
+#include <nanomsg/reqrep.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -9,10 +9,9 @@
 
 #define N_MAX_SERVERS 32
 
-
 struct flux_server {
     int sock; 
-    int n_ids;
+    size_t n_ids;
     flux_id_t * ids;
     char * rep_url;
 };
@@ -20,70 +19,66 @@ struct flux_server {
 struct _flux_cli {
     int broker_sock;
     int verbose;
-    int n_servers;
-    int survey_state;
-    struct flux_server servers[N_MAX_SERVERS];
-    struct flux_server survey_responses[N_MAX_SERVERS];
+    size_t n_servers;
+    struct flux_server * servers;
 };
 
-int flux_cli_survey(flux_cli_t * client){
-    if(client->survey_state >= 0) return -1;
-    client->survey_state = 0;
+static char * servers_string = NULL;
 
+int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
     int id_size = nn_send(client->broker_sock, "ID", 2, 0);
     assert(id_size == 2);
+    
+    char * resp = NULL;
+    int resp_size = nn_recv(client->broker_sock, &resp, NN_MSG, 0);
+    if(resp_size < 0) return -1;
 
-    while(1){
-        char * resp = NULL;
-        int resp_size = nn_recv(client->broker_sock, &resp, NN_MSG, 0);
-        if(resp_size == ETIMEDOUT) break;
-        if(resp_size >= 0){
-            struct flux_server * serv = &client->survey_responses[client->survey_state];
-            // Tokenize string in form "URL|ids"; replace '|' with '\0'
-            
-            serv->rep_url = malloc(resp_size);
-            assert(serv->rep_url);
-            memcpy(serv->rep_url, resp, resp_size);
+    if(servers_string) free(servers_string);
+    servers_string = malloc(resp_size);
+    assert(servers_string);
+    memcpy(servers_string, resp, resp_size);
+    nn_freemsg(resp);
 
-            int i = 0;
-            for(; i < resp_size; i++){
-                if(resp[i] == '|') break;
-            }
-            serv->rep_url[i] = '\0';
-            serv->ids = (flux_id_t *) &serv->rep_url[i+1];
-            serv->n_ids = (resp_size  - i - 1) / sizeof(flux_id_t);
+    // Split lines & tokenize. Each newline is a server
+    // Tokenize string in form "URL\tIDS\n"; replace '\t' with '\0'
+    
+    // XXX: not quite thread safe
+    int n = 0;
+    for(int i = 0; i < resp_size; i++){
+        if(servers_string[i] == '\n') n++;
+    }
 
-            serv->sock = nn_socket(AF_SP, NN_REQ);
-            assert(serv->sock >= 0);
-            assert(nn_bind(serv->sock, serv->rep_url) >= 0);
-
-            client->survey_state++;
-            nn_freemsg(resp);
+    struct flux_server * servers = NULL;
+    if(n > 0){
+        assert(servers_string[resp_size-1] == '\n');
+        servers = malloc(n * sizeof(struct flux_server));
+        assert(servers);
+        char * sptr = servers_string;
+        for(int i = 0; i < n; i++){
+            servers[i].rep_url = sptr;
+            int j = 0;
+            while(sptr[j] != '\t' && sptr[j] != '\n') j++;
+            assert(sptr[j] == '\t');
+            sptr += j;
+            *sptr++ = '\0';
+            servers[i].ids = (flux_id_t *) sptr;
+            while(sptr[j+1] != '\n') j++;
+            servers[i].n_ids = j / sizeof(flux_id_t);
+            assert(servers[i].n_ids * sizeof(flux_id_t) == (size_t) j);
+            sptr += j;
+            *sptr++ = '\0';
         }
     }
 
-    // XXX: Should there be a better lock here?
-    int n = client->n_servers;
-    client->n_servers = 0;
-    for(int i = 0; i < n; i++){
-        free(client->servers[i].rep_url);
-        free(client->servers[i].ids);
-        client->servers[i].n_ids = 0;
-        nn_shutdown(client->servers[i].sock, 0);
-    }
-    memcpy(client->servers, client->survey_responses, client->survey_state * sizeof(struct flux_server));
-    client->n_servers = client->survey_state;
-    client->survey_state = -1;
+    client->n_servers = n;
+    if(client->servers) free(client->servers);
+    client->servers = servers;
 
-    return client->n_servers;
-}
-
-int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
-    assert(client);
+    assert(ids);
 
     // Count the total number of ids
-    int n_ids = 0;
-    for(int i = 0; i < client->n_servers; i++){
+    size_t n_ids = 0;
+    for(size_t i = 0; i < client->n_servers; i++){
         n_ids += client->servers[i].n_ids;
     }
 
@@ -94,7 +89,7 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
 
     // Concatenate ids
     char * iptr = (char *) *ids;
-    for(int i = 0; i < client->n_servers; i++){
+    for(size_t i = 0; i < client->n_servers; i++){
         memcpy(iptr, client->servers[i].ids, client->servers[i].n_ids * sizeof(flux_id_t));
         iptr += sizeof(flux_id_t);
     }
@@ -112,15 +107,15 @@ int flux_cli_send(flux_cli_t * client, const flux_id_t dest, const flux_cmd_t cm
 
     int req_sock = -1;
 
-    for(int i = 0; i < client->n_servers; i++){
-        for(int j = 0; j < client->servers[i].n_ids; j++){
+    for(size_t i = 0; i < client->n_servers; i++){
+        for(size_t j = 0; j < client->servers[i].n_ids; j++){
             if(memcmp(&client->servers[i].ids[j], dest, sizeof(flux_id_t)) == 0){
                 req_sock = client->servers[i].sock;
                 goto found_dest_match;
             }
         }
     }
-    if(client->verbose) fprintf(stderr, "No ID found matching %16s\n in %d servers", dest, client->n_servers);
+    if(client->verbose) fprintf(stderr, "No ID found matching %16s\n in %u servers", dest, (unsigned int) client->n_servers);
     return -1;
 
 found_dest_match:
@@ -166,7 +161,7 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
 
     client->verbose = verbose;
     client->n_servers = 0;
-    client->survey_state = -1;
+    client->servers = NULL;
 
     // Bind to broker SURVEYOR socket
     client->broker_sock =  nn_socket(AF_SP, NN_SURVEYOR);
@@ -179,15 +174,13 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
 void flux_cli_del(flux_cli_t * client){
     if(client->verbose) printf("Client closed.\n");
 
-    for(int i = 0; i < client->n_servers; i++){
-        free(client->servers[i].rep_url);
-        free(client->servers[i].ids);
-        client->servers[i].n_ids = 0;
+    for(size_t i = 0; i < client->n_servers; i++){
         nn_shutdown(client->servers[i].sock, 0);
     }
 
     client->n_servers = 0;
     nn_shutdown(client->broker_sock, 0);
+    free(servers_string);
 
     free(client);
 }
