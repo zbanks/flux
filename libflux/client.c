@@ -18,6 +18,7 @@ struct flux_server {
 
 struct _flux_cli {
     int broker_sock;
+    int timeout;
     int verbose;
     size_t n_servers;
     struct flux_server * servers;
@@ -26,12 +27,21 @@ struct _flux_cli {
 static char * servers_string = NULL;
 
 int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
+    assert(ids);
+    assert(*ids == NULL);
+
     int id_size = nn_send(client->broker_sock, "ID", 2, 0);
-    assert(id_size == 2);
+    if(id_size != 2){
+        if(client->verbose) printf("Unable to list ids: unable to send to broker:\n", nn_strerror(errno));
+        return -1;
+    }
     
     char * resp = NULL;
     int resp_size = nn_recv(client->broker_sock, &resp, NN_MSG, 0);
-    if(resp_size < 0) return -1;
+    if(resp_size < 0){
+        if(client->verbose) printf("Unable to list ids: invalid broker response: %s\n", nn_strerror(errno));
+        return -1;
+    }
 
     if(servers_string) free(servers_string);
     servers_string = malloc(resp_size);
@@ -50,7 +60,10 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
 
     struct flux_server * servers = NULL;
     if(n > 0){
-        assert(servers_string[resp_size-1] == '\n');
+        if(servers_string[resp_size-1] != '\n'){
+            if(client->verbose) printf("Warning while listing ids: invalid broker response.\n");
+            return -1;
+        }
         servers = malloc(n * sizeof(struct flux_server));
         assert(servers);
         char * sptr = servers_string;
@@ -58,34 +71,43 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
             servers[i].rep_url = sptr;
             int j = 0;
             while(sptr[j] != '\t' && sptr[j] != '\n') j++;
-            assert(sptr[j] == '\t');
+            if(sptr[j] != '\t'){
+                if(client->verbose) printf("Warning while listing ids: invalid broker response.\n");
+                free(servers);
+                return -1;
+            }
             sptr += j;
             *(sptr++) = '\0';
             servers[i].ids = (flux_id_t *) sptr;
             for(j = 0; sptr[j] != '\n'; j++);
             servers[i].n_ids = j / sizeof(flux_id_t);
-            assert(servers[i].n_ids * sizeof(flux_id_t) == (size_t) j);
+            //assert(servers[i].n_ids * sizeof(flux_id_t) == (size_t) j);
             sptr += j;
             *(sptr++) = '\0';
 
             servers[i].sock = nn_socket(AF_SP, NN_REQ);
             assert(servers[i].sock >= 0);
             static int timeout = 1000;
-            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
-            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
-            assert(nn_connect(servers[i].sock, servers[i].rep_url) >= 0);
-            if(client->verbose) printf("Connected to server: %s\n", servers[i].rep_url);
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client.timeout, sizeof(int)) >= 0);
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client.timeout, sizeof(int)) >= 0);
+            if(nn_connect(servers[i].sock, servers[i].rep_url) >= 0){
+                if(client->verbose) printf("Connected to server: %s\n", servers[i].rep_url);
+            }else{
+                if(client->verbose) printf("Unable to connect to server %s: %s\n", servers[i].rep_url, nn_strerror(errno));
+                assert(nn_close(servers[i].sock) == 0);
+                n--;
+                i--;
+            }
         }
     }
 
     for(size_t i = 0; i < client->n_servers; i++){
-        nn_shutdown(client->servers[i].sock, 0);
+        assert(nn_close(client->servers[i].sock) == 0);
     }
     client->n_servers = n;
     if(client->servers) free(client->servers);
     client->servers = servers;
 
-    assert(ids);
 
     // Count the total number of ids
     size_t n_ids = 0;
@@ -94,7 +116,6 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
     }
 
     // Allocate a buffer to id array
-    assert(*ids == NULL);
     *ids = malloc(n_ids * sizeof(flux_id_t));
     assert(*ids);
 
@@ -126,7 +147,7 @@ int flux_cli_send(flux_cli_t * client, const flux_id_t dest, const flux_cmd_t cm
             }
         }
     }
-    if(client->verbose) fprintf(stderr, "No ID found matching %16s\n in %u servers", dest, (unsigned int) client->n_servers);
+    if(client->verbose) printf("No ID found matching %16s\n in %u servers", dest, (unsigned int) client->n_servers);
     return -1;
 
 found_dest_match:
@@ -143,15 +164,21 @@ found_dest_match:
         memcpy(mptr, body, body_size); 
         mptr += body_size;
     }
-    assert(mptr - msg == msg_size);
+    //assert(mptr - msg == msg_size);
 
     // Send `msg` & recieve `resp`  (REQ/REP)
     int msg_send = nn_send(req_sock, msg, msg_size, NN_DONTWAIT);
-    assert(msg_send == msg_size);
+    if(msg_send != msg_size){
+        if(client->verbose) printf("Error sending message: %s\n", nn_strerror(errno));
+        return -1;
+    }
 
     char * resp;
     int resp_size = nn_recv(req_sock, &resp, NN_MSG, 0);
-    assert(resp_size >= 0);
+    if(resp_size >= 0){
+        if(client->verbose) printf("Error receiving message: %s\n", nn_strerror(errno));
+        return -1;
+    }
     //printf("Recieved %d bytes\n", resp_size);
 
     // Repackage response so it can be free'd
@@ -163,7 +190,7 @@ found_dest_match:
     return resp_size;
 }
 
-flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
+flux_cli_t * flux_cli_init(const char * broker_url, int timeout, int verbose){
     flux_cli_t * client;
     if(verbose) printf("Client starting on %s...\n", broker_url);
 
@@ -172,6 +199,7 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
     memset(client, 0, sizeof(flux_cli_t));
 
     client->verbose = verbose;
+    client->timeout = timeout;
     client->n_servers = 0;
     client->servers = NULL;
 
@@ -179,9 +207,12 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
     client->broker_sock =  nn_socket(AF_SP, NN_REQ);
     assert(client->broker_sock >= 0);
     static int timeout = 1000;
-    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
-    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
-    assert(nn_connect(client->broker_sock, broker_url) >= 0);
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client.timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client.timeout, sizeof(int)) >= 0);
+    if(nn_connect(client->broker_sock, broker_url) < 0){
+        printf("Unable to init flux client: %s\n", nn_strerror(errno));
+        return NULL;
+    }
 
     return client;
 }

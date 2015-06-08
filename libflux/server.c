@@ -29,6 +29,7 @@ struct _flux_dev {
 static flux_dev_t devices[N_MAX_DEVICES] = {{0}};
 static int n_devices = 0;
 static int poll_interval = 500;
+static int timeout = 1000;
 static int verbose = 0;
 
 static int broker_sock = -1;
@@ -42,24 +43,35 @@ void flux_server_set_poll_interval(int interval){
     poll_interval = interval;
 }
 
-int flux_server_init(const char * broker_url, const char * _rep_url, int _verbose){
+void flux_server_set_timeout(int _timeout){
+    timeout = _timeout;
+}
+
+int flux_server_init(const char * broker_url, const char * _rep_url, int _timeout, int _verbose){
     verbose = _verbose;
     if(verbose) printf("Starting server.\n");
+
+    timeout = _timeout;
 
     // Connect to broker as RESPONDENT
     broker_sock = nn_socket(AF_SP, NN_RESPONDENT);
     assert(broker_sock >= 0);
-    static int timeout = 1000;
     assert(nn_setsockopt(broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
     assert(nn_setsockopt(broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
-    assert(nn_connect(broker_sock, broker_url) >= 0);
+    if(nn_connect(broker_sock, broker_url) < 0){
+        printf("Unable to init flux serer: %s\n", nn_strerror(errno));
+        return -1;
+    }
 
     // Set up REP socket
     rep_sock = nn_socket(AF_SP, NN_REP);
     assert(rep_sock >= 0);
     assert(nn_setsockopt(rep_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
     assert(nn_setsockopt(rep_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
-    assert(nn_bind(rep_sock, _rep_url) >= 0);
+    if(nn_bind(rep_sock, _rep_url) < 0){
+        printf("Unable to init flux serer: %s\n", nn_strerror(errno));
+        return -1;
+    }
 
     // Set up poll struct to listen for incoming packets
     pollfd[0].fd = broker_sock;
@@ -104,10 +116,12 @@ void flux_server_close(){
 }
 
 int flux_server_poll(){
-    assert(pollfd[0].events | pollfd[1].events);
+    if(!(pollfd[0].events | pollfd[1].events)){
+        if(verbose) printf("Unable to poll flux server before init.\n");
+        return -1;
+    }
     // Blocks until an event happens
     int res = nn_poll(pollfd, 2, poll_interval);
-    if(verbose) printf("poll:%d\n", res);
     if(res <= 0) return res; // Return -1 on error; 0 if timeout
 
     if(pollfd[0].revents & NN_POLLIN){
@@ -121,7 +135,9 @@ int flux_server_poll(){
             if(survey_size == 2 && strncmp(survey_body, "ID", 2) == 0){
                 // Respond to ID request
                 int id_sent = nn_send(broker_sock, id_response, id_response_size, 0);
-                assert(id_sent == id_response_size);
+                if(id_sent != id_response_size){
+                    printf("Unable to respond to ID request: %s\n", nn_strerror(errno));
+                }
             }
             nn_freemsg(survey_body);
         }
@@ -151,10 +167,14 @@ int flux_server_poll(){
                 if(rep_size >= 0){
                     //printf("Sending %d bytes\n", rep_size);
                     int rep_sent = nn_send(rep_sock, rep_body, rep_size, 0);
-                    assert(rep_sent == (int) rep_size);
+                    if(rep_sent != (int) rep_size){
+                        printf("Unable to send REP response: %s\n", nn_strerror(errno));
+                    }
                 }else{
                     int rep_sent = nn_send(rep_sock, "ERROR", 5, NN_DONTWAIT);
-                    assert(rep_sent == 5);
+                    if(rep_sent != 5){
+                        printf("Unable to send REP ERROR response: %s\n", nn_strerror(errno));
+                    }
                 }
             }
             nn_freemsg(msg);
