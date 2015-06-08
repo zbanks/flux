@@ -49,11 +49,16 @@ int flux_server_init(const char * broker_url, const char * _rep_url, int _verbos
     // Connect to broker as RESPONDENT
     broker_sock = nn_socket(AF_SP, NN_RESPONDENT);
     assert(broker_sock >= 0);
+    static int timeout = 1000;
+    assert(nn_setsockopt(broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
     assert(nn_connect(broker_sock, broker_url) >= 0);
 
     // Set up REP socket
     rep_sock = nn_socket(AF_SP, NN_REP);
     assert(rep_sock >= 0);
+    assert(nn_setsockopt(rep_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(rep_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
     assert(nn_bind(rep_sock, _rep_url) >= 0);
 
     // Set up poll struct to listen for incoming packets
@@ -142,12 +147,14 @@ int flux_server_poll(){
 
                 // TODO: pass on errors from `request(...)` 
                 char * rep_body;
-                int rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, msg_size, &rep_body);
+                int rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, (size_t) msg_size, &rep_body);
                 if(rep_size >= 0){
-                    printf("Sending %d bytes\n", rep_size);
+                    //printf("Sending %d bytes\n", rep_size);
                     int rep_sent = nn_send(rep_sock, rep_body, rep_size, 0);
                     assert(rep_sent == (int) rep_size);
-                    //TODO XXX free(rep_body)???
+                }else{
+                    int rep_sent = nn_send(rep_sock, "ERROR", 5, NN_DONTWAIT);
+                    assert(rep_sent == 5);
                 }
             }
             nn_freemsg(msg);

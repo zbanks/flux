@@ -70,7 +70,11 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
 
             servers[i].sock = nn_socket(AF_SP, NN_REQ);
             assert(servers[i].sock >= 0);
+            static int timeout = 1000;
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
             assert(nn_connect(servers[i].sock, servers[i].rep_url) >= 0);
+            if(client->verbose) printf("Connected to server: %s\n", servers[i].rep_url);
         }
     }
 
@@ -142,13 +146,13 @@ found_dest_match:
     assert(mptr - msg == msg_size);
 
     // Send `msg` & recieve `resp`  (REQ/REP)
-    int msg_send = nn_send(req_sock, msg, msg_size, 0);
+    int msg_send = nn_send(req_sock, msg, msg_size, NN_DONTWAIT);
     assert(msg_send == msg_size);
 
     char * resp;
     int resp_size = nn_recv(req_sock, &resp, NN_MSG, 0);
     assert(resp_size >= 0);
-    printf("Recieved %d bytes\n", resp_size);
+    //printf("Recieved %d bytes\n", resp_size);
 
     // Repackage response so it can be free'd
     *reply = malloc(resp_size);
@@ -174,6 +178,9 @@ flux_cli_t * flux_cli_init(const char * broker_url, int verbose){
     // Bind to broker SURVEYOR socket
     client->broker_sock =  nn_socket(AF_SP, NN_REQ);
     assert(client->broker_sock >= 0);
+    static int timeout = 1000;
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &timeout, sizeof(int)) >= 0);
     assert(nn_connect(client->broker_sock, broker_url) >= 0);
 
     return client;

@@ -27,7 +27,7 @@ static struct device devices[N_LUX_IDS] = {{0}};
 static int write_only = 0;
 static int verbose = 0;
 
-int dummy_request(void * args, const flux_cmd_t cmd, char * body, int body_size, char ** reply){
+int dummy_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size, char ** reply){
     UNUSED(args);
     int reply_size = -1;
 
@@ -37,9 +37,9 @@ int dummy_request(void * args, const flux_cmd_t cmd, char * body, int body_size,
     }else if(memcmp(cmd, "ECHO", 4) == 0){
         *reply = body;
         reply_size = body_size;
-    }else if(memcmp(cmd, "INFO", 4) == 0){
-        *reply = "DUMMY INFO";
-        reply_size = 10;
+    }else if(memcmp(cmd, "LENGTH?", 4) == 0){
+        *reply = "999";
+        reply_size = 4;
     }else{
         return -1;
     }
@@ -48,45 +48,42 @@ int dummy_request(void * args, const flux_cmd_t cmd, char * body, int body_size,
     return reply_size;
 }
 
-/*
-int lux_request(void * args, const char * cmd, zmsg_t ** msg, zmsg_t ** reply){
+int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size, char ** reply){
     struct device * device = (struct device *) args;
-    int rc = 0;
+    int rc = -1;
 
     //printf("Req %s: %s\n", device->name, cmd);
-    if(strcmp(cmd, "PING") == 0){
-        *reply = *msg;
-        zmsg_pushstr(*reply, "PONG");
-    }else if(strcmp(cmd, "ECHO") == 0){
-        *reply = *msg;
-    }else if(strcmp(cmd, "INFO") == 0){
-        zmsg_destroy(msg);
-        zmsg_t * r = *reply = zmsg_new();
-        zmsg_push(r, zhash_pack(device->info));
-    }else if(strcmp(cmd, "FRAME") == 0){
-        *reply = *msg;
-        zframe_t * pixels = zmsg_pop(*msg);
-        if(zframe_size(pixels) == device->length * 3){
-            struct lux_frame lf;
+    if(strncmp(cmd, "PING", 16) == 0){
+        *reply = "PONG";
+        rc = 4;
+    }else if(strncmp(cmd, "ECHO", 16) == 0){
+        *reply = body;
+        rc = body_size;
+    }else if(strncmp(cmd, "LENGTH?", 16) == 0){
+        *reply = device->length_str;
+        rc = sizeof(device->length_str);
+    }else if(strncmp(cmd, "FRAME", 16) == 0){
+        if(body_size == device->length * 3){
+            *reply = "OK";
+            rc = 2;
 
-            memcpy(lf.data.carray.data, zframe_data(pixels), device->length * 3);
+            struct lux_frame lf;
+            memcpy(lf.data.carray.data, body, device->length * 3);
 
             lf.data.carray.cmd = CMD_FRAME;
             lf.destination = device->id;
             lf.length = (device->length * 3) + 1;
             rc = lux_tx_packet(device->bus, &lf);
         }else{
-            rc = -1;
+            *reply = "BadSize";
+            rc = 7;
         }
-
-        zframe_destroy(&pixels);
     }else{
         rc = -1;
     }
 
     return rc;
 }
-*/
 
 /*
 static void enumerate_devices(ser_t * serial){
