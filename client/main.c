@@ -18,7 +18,7 @@ int main(int argc, char ** argv){
     if(argc) broker_url = *argv++, argc--;
     if(argc) verbose = !strcmp(*argv++, "-v"), argc--;
 
-    client = flux_cli_init(broker_url, verbose); 
+    client = flux_cli_init(broker_url, 1000, verbose); 
 
     while(1){
         flux_id_t * ids = NULL;

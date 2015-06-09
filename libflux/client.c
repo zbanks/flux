@@ -32,7 +32,7 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
 
     int id_size = nn_send(client->broker_sock, "ID", 2, 0);
     if(id_size != 2){
-        if(client->verbose) printf("Unable to list ids: unable to send to broker:\n", nn_strerror(errno));
+        if(client->verbose) printf("Unable to list ids: unable to send to broker: %s\n", nn_strerror(errno));
         return -1;
     }
     
@@ -87,9 +87,8 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
 
             servers[i].sock = nn_socket(AF_SP, NN_REQ);
             assert(servers[i].sock >= 0);
-            static int timeout = 1000;
-            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client.timeout, sizeof(int)) >= 0);
-            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client.timeout, sizeof(int)) >= 0);
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client->timeout, sizeof(int)) >= 0);
+            assert(nn_setsockopt(servers[i].sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client->timeout, sizeof(int)) >= 0);
             if(nn_connect(servers[i].sock, servers[i].rep_url) >= 0){
                 if(client->verbose) printf("Connected to server: %s\n", servers[i].rep_url);
             }else{
@@ -206,9 +205,8 @@ flux_cli_t * flux_cli_init(const char * broker_url, int timeout, int verbose){
     // Bind to broker SURVEYOR socket
     client->broker_sock =  nn_socket(AF_SP, NN_REQ);
     assert(client->broker_sock >= 0);
-    static int timeout = 1000;
-    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client.timeout, sizeof(int)) >= 0);
-    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client.timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_RCVTIMEO, &client->timeout, sizeof(int)) >= 0);
+    assert(nn_setsockopt(client->broker_sock, NN_SOL_SOCKET, NN_SNDTIMEO, &client->timeout, sizeof(int)) >= 0);
     if(nn_connect(client->broker_sock, broker_url) < 0){
         printf("Unable to init flux client: %s\n", nn_strerror(errno));
         return NULL;
