@@ -21,7 +21,7 @@ struct device {
 #define N_LUX_IDS 4
 static int n_lux_ids = N_LUX_IDS;
 static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
-//static int lux_default_lengths[N_LUX_IDS] = {61, 60, 60, 60}; // For write-only mode
+static int lux_default_lengths[N_LUX_IDS] = {60, 60, 60, 60}; // For write-only mode
 
 static struct device devices[N_LUX_IDS] = {{0}};
 static int write_only = 0;
@@ -73,7 +73,8 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
             lf.data.carray.cmd = CMD_FRAME;
             lf.destination = device->id;
             lf.length = (device->length * 3) + 1;
-            rc = lux_tx_packet(device->bus, &lf);
+            if(lux_tx_packet(device->bus, &lf))
+                rc = -1;
         }else{
             *reply = "BadSize";
             rc = 7;
@@ -85,12 +86,12 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
     return rc;
 }
 
-/*
 static void enumerate_devices(ser_t * serial){
     for(int i = 0; i < n_lux_ids; i++){
         if(serial->write_only){
             devices[i].bus = serial;
             devices[i].length = lux_default_lengths[i];
+            snprintf(devices[i].length_str, 4, "%d", devices[i].length);
         }else{
             struct lux_frame cmd;
             struct lux_frame resp;
@@ -104,7 +105,7 @@ static void enumerate_devices(ser_t * serial){
 
             printf("Found light strip %d @0x%08x: '%s'\n", i, cmd.destination, resp.data.raw);
             strncpy(devices[i].id_str, (char *) resp.data.raw, 255);
-            zhash_update(devices[i].info, "id", devices[i].id_str);
+            //zhash_update(devices[i].info, "id", devices[i].id_str);
             devices[i].bus = serial;
 
             cmd.data.raw[0] = CMD_GET_LENGTH;
@@ -113,7 +114,7 @@ static void enumerate_devices(ser_t * serial){
             printf("length: %d\n", resp.data.ssingle_r.data);
             devices[i].length = resp.data.ssingle_r.data;
             snprintf(devices[i].length_str, 4, "%d", resp.data.ssingle_r.data);
-            zhash_update(devices[i].info, "length", devices[i].length_str);
+            //zhash_update(devices[i].info, "length", devices[i].length_str);
             devices[i].bus = serial;
             cmd.length = 1;
 
@@ -133,7 +134,6 @@ sfail:
         }
     }
 }
-*/
 
 static void print_help(){
     printf("Usage: flux-server [-b broker_socket] [-d dummy_id] [-r] [-v]\n"
@@ -209,9 +209,13 @@ int main(int argc, char ** argv){
 
     int rc = 0;
     while(!rc){
-        //if(serial) enumerate_devices(serial);
-        for(int i = 0; i < 1000; i++)
-            if((rc = flux_server_poll()) < 0) break;
+        if(serial) enumerate_devices(serial);
+        for(int i = 0; i < 1000; i++){
+            if(flux_server_poll() < 0){
+                rc = -1;
+                break;
+            }
+        }
     }
 
     // Teardown
