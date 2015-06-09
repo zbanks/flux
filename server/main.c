@@ -202,7 +202,7 @@ int main(int argc, char ** argv){
         //devices[i].info = zhash_new();
     }
 
-    if(flux_server_init(broker_url, server_url, verbose)) FAIL("Unable to intialize flux server.\n");
+    if(flux_server_init(broker_url, server_url, 1000, verbose)) FAIL("Unable to intialize flux server.\n");
 
     if(dummy_name) dummy_dev = flux_dev_init(dummy_name, &dummy_request, NULL);
     if(!serial && !dummy_dev) FAIL("No devices to broadcast; exiting.\n");
