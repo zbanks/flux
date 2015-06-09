@@ -73,6 +73,7 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
             while(sptr[j] != '\t' && sptr[j] != '\n') j++;
             if(sptr[j] != '\t'){
                 if(client->verbose) printf("Warning while listing ids: invalid broker response.\n");
+                if(client->verbose) printf("Msg: %s; %s\n", servers_string, sptr);
                 free(servers);
                 return -1;
             }
@@ -174,11 +175,11 @@ found_dest_match:
 
     char * resp;
     int resp_size = nn_recv(req_sock, &resp, NN_MSG, 0);
-    if(resp_size >= 0){
+    if(resp_size < 0){
         if(client->verbose) printf("Error receiving message: %s\n", nn_strerror(errno));
         return -1;
     }
-    //printf("Recieved %d bytes\n", resp_size);
+    if(client->verbose) printf("Recieved %d bytes\n", resp_size);
 
     // Repackage response so it can be free'd
     *reply = malloc(resp_size);
