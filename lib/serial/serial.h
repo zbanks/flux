@@ -2,8 +2,8 @@
 #define __SERIAL_H__
 
 #include <termios.h>
-#include "lux_hal.h"
-#include "lux_wire.h"
+#include "lib/lux/inc/lux_hal.h"
+#include "lib/lux/inc/lux_wire.h"
 
 typedef struct ser {
     int fd;

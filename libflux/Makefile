@@ -18,7 +18,7 @@ LIB = -lnanomsg
 PEDANTIC = -Wpedantic
 CFLAGS  = -g -O3 $(INC) -Wall -Wextra -Werror -std=gnu99 -fPIC
 LFLAGS  = $(CFLAGS)
-CFLAGS += $(PEDANTIC)
+#CFLAGS += $(PEDANTIC)
 
 # Targets
 .PHONY: all

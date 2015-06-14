@@ -1,8 +1,10 @@
 #include "lib/err.h"
-#include "serial/serial.h"
+#include "lib/serial/serial.h"
 
 #include <flux.h>
 #include <string.h>
+
+// Example Flux Server - Lux Light Strips
 
 struct device {
     int id;
@@ -23,7 +25,7 @@ static int n_lux_ids = N_LUX_IDS;
 static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
 static int lux_default_lengths[N_LUX_IDS] = {60, 60, 60, 60}; // For write-only mode
 
-static struct device devices[N_LUX_IDS] = {{0}};
+static struct device devices[N_LUX_IDS];
 static int write_only = 0;
 static int verbose = 0;
 

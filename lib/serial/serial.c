@@ -9,9 +9,9 @@
 #include <unistd.h>
 
 #include "lib/err.h"
-#include "lib/crc.h"
-#include "lux.h"
-#include "serial/serial.h"
+#include "lib/crc/crc.h"
+#include "lib/lux/inc/lux.h"
+#include "lib/serial/serial.h"
 
 static char lux_is_transmitting;
 static crc_t crc;

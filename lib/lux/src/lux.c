@@ -1,6 +1,6 @@
-#include "lux.h"
+#include "lib/lux/inc/lux.h"
 
-#include "lux_hal.h"
+#include "lib/lux/inc/lux_hal.h"
 
 // Global variables
 

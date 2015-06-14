@@ -26,7 +26,7 @@ struct _flux_dev {
 
 #define N_MAX_DEVICES 64
 
-static flux_dev_t devices[N_MAX_DEVICES] = {{0}};
+static flux_dev_t devices[N_MAX_DEVICES];
 static int n_devices = 0;
 static int poll_interval = 500;
 static int timeout = 1000;
