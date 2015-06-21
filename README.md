@@ -1,6 +1,8 @@
 flux
 ====
 
+[![Join the chat at https://gitter.im/zbanks/flux](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zbanks/flux?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Middlelayer for controlling lux devices &amp; more: "jackd for lights".
 
 Model
