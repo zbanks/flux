@@ -8,6 +8,8 @@
 typedef struct ser {
     int fd;
     int write_only;
+    size_t idx;
+    uint8_t buffer[4096];
 } ser_t;
 
 ser_t * serial_init(int write_only);

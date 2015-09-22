@@ -59,7 +59,7 @@ static uint8_t cobs_remaining;
 static uint8_t cobs_add_zero;
 
 // Buffer and pointers for the COBS encoder to hold the current block
-static uint8_t cobs_encoder_fill_ptr;
+static uint16_t cobs_encoder_fill_ptr;
 static uint8_t cobs_encoder_send_ptr;
 static uint8_t cobs_buffer[256];
 
@@ -139,19 +139,14 @@ static uint8_t cobs_encode_and_send(uint8_t byte)
 {
     lux_hal_crc(byte);
 
-    if(byte == 0)
-    {
+    if(byte == 0) {
         goto write;
+    } else {
+        cobs_buffer[cobs_encoder_fill_ptr++]=byte;
     }
-    else
-    {
-        //TODO: Needs testing
-        //XXX cobs_encoder_fill_ptr probably needs to get reset?
-        cobs_buffer[cobs_encoder_fill_ptr]=byte;
-        if(cobs_encoder_fill_ptr == 255){
-            goto write;
-        }
-        cobs_encoder_fill_ptr++;
+    if(cobs_encoder_fill_ptr == 256) {
+        cobs_encoder_fill_ptr = 255;
+        goto write;
     }
     return 1;
 
@@ -335,7 +330,7 @@ void lux_stop_rx()
 void lux_start_tx()
 {
     // Busywait: wait for RTS to go low
-    for(volatile long i = 0; i < 100000; i++); //FIXME
+    //for(volatile long i = 0; i < 500000; i++); //FIXME
     codec_state=ENCODE;
     encoder_state=ENCODER_START;
     lux_hal_enable_tx();

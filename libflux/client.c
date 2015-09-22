@@ -129,6 +129,10 @@ int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids){
     return n_ids;
 }
 
+void flux_buffer_del(void * buffer){
+    free(buffer);
+}
+
 int flux_cli_send(flux_cli_t * client, const flux_id_t dest, const flux_cmd_t cmd, const char * body, size_t body_size, char ** reply){
     assert(client);
     assert(dest);

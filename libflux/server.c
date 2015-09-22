@@ -147,11 +147,19 @@ int flux_server_poll(){
         assert(pollfd[1].fd == rep_sock);
         char * msg = NULL;
         int msg_size = nn_recv(rep_sock, &msg, NN_MSG, NN_DONTWAIT);
-        if(msg_size < (int) (sizeof(flux_id_t) + sizeof(flux_cmd_t))){
-             // Handle error TODO
+
+        char * rep_body;
+        int rep_size = -1;
+        if(msg_size == 1 && *msg == '?'){
+            rep_body = id_response;
+            rep_size = id_response_size;
+        }else if(msg_size < (int) (sizeof(flux_id_t) + sizeof(flux_cmd_t))){
+             // Handle error 
+             // TODO: handle it more gracefully
              if(verbose) fprintf(stderr, "Error on REP socket: %d", msg_size);
+             return -1;
         }else{
-            // XXX 
+            // XXX - maybe unpack from a struct or something?
             char * msg_id = msg;
             char * msg_cmd = msg + sizeof(flux_id_t);
             char * msg_body = msg + sizeof(flux_id_t) + sizeof(flux_cmd_t);
@@ -162,23 +170,22 @@ int flux_server_poll(){
                 if(memcmp(msg_id, devices[i].name, sizeof(flux_id_t))) continue;
 
                 // TODO: pass on errors from `request(...)` 
-                char * rep_body;
-                int rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, (size_t) msg_size, &rep_body);
-                if(rep_size >= 0){
-                    //printf("Sending %d bytes\n", rep_size);
-                    int rep_sent = nn_send(rep_sock, rep_body, rep_size, 0);
-                    if(rep_sent != (int) rep_size){
-                        printf("Unable to send REP response: %s\n", nn_strerror(errno));
-                    }
-                }else{
-                    int rep_sent = nn_send(rep_sock, "ERROR", 5, NN_DONTWAIT);
-                    if(rep_sent != 5){
-                        printf("Unable to send REP ERROR response: %s\n", nn_strerror(errno));
-                    }
-                }
+                rep_size = devices[i].request(devices[i].args, msg_cmd, msg_body, (size_t) msg_size, &rep_body);
             }
-            nn_freemsg(msg);
         }
+
+        if(rep_size < 0){
+            char rep_body_buffer[16];
+            rep_size = snprintf(rep_body_buffer, 16, "ERROR: %d", rep_size);
+            rep_body = rep_body_buffer;
+        }
+
+        int rep_sent = nn_send(rep_sock, rep_body, rep_size, 0);
+        if(rep_sent != (int) rep_size){
+            printf("Unable to send REP response: %s\n", nn_strerror(errno));
+        }
+
+        nn_freemsg(msg);
     }
     return res; 
 }

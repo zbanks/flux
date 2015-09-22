@@ -2,7 +2,7 @@
 #define __LUX_H
 
 #include <stdint.h>
-#include "lux_wire.h"
+#include "lib/lux/inc/lux_wire.h"
 
 // How many bytes the destination is
 #define LUX_DESTINATION_SIZE 4

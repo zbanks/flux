@@ -48,9 +48,17 @@ ser_t * serial_init(int write_only){
             printf("Found output on '%s', %d\n", dbuf, port.fd);
             break;
         }
+
+        sprintf(dbuf, "/dev/ttyACM%d", i);
+        port.fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC);
+        if(port.fd >= 0){
+            printf("Found output on '%s', %d\n", dbuf, port.fd);
+            break;
+        }
     }
     if(port.fd < 0) return NULL;
 
+    port.idx = 0;
     port.write_only = write_only;
     if(write_only) printf("Opened serial in write_only mode.\n");
 
@@ -180,22 +188,26 @@ char lux_rx_packet(ser_t * s, struct lux_frame *response, int timeout_ms){
 
 void lux_hal_enable_rx(){
     lux_is_transmitting = 0;
+    /*
     //TODO:port
     if(!port.write_only){
         const int r = TIOCM_RTS;
         usleep(2000);
         ioctl(port.fd, TIOCMBIS, &r);
     }
+    */
 }
 
 void lux_hal_disable_rx(){
-    const int r = TIOCM_RTS;
     lux_is_transmitting = 1;
+    /*
+    const int r = TIOCM_RTS;
     ioctl(port.fd, TIOCMBIC, &r);
     //TODO:port
     if(!port.write_only){
         usleep(2000);
     }
+    */
 }
 
 void lux_hal_enable_tx(){}
@@ -216,19 +228,28 @@ uint8_t lux_hal_read_byte(){
     return byte;
 }
 
+//TODO: clean up 
 int16_t lux_hal_bytes_to_write(){
-    return 2048;
+    return sizeof(port.buffer) - port.idx;
 }
 
 void lux_hal_write_byte(uint8_t byte){
     //TODO:port
+    port.buffer[port.idx++] = byte;
+    if (port.idx == sizeof(port.buffer))
+        lux_hal_tx_flush(); // this might not work
+    /*
     if(!write(port.fd, &byte, 1))
         printf("Error writing byte to serial port\n");
+        */
 }
 
 uint8_t lux_hal_tx_flush(){
     //TODO:port
-    tcflush(port.fd, TCOFLUSH);
+    //tcflush(port.fd, TCOFLUSH);
+    if(!write(port.fd, port.buffer, port.idx))
+        printf("Error writing byte to serial port\n");
+    port.idx = 0;
     return 1;
 }
 
@@ -267,6 +288,8 @@ int serial_set_attribs (int fd, int speed)
         tty.c_cflag &= ~CSTOPB; // 1 stop bit
         tty.c_cflag &= ~(PARENB|PARODD);
         tty.c_iflag &= ~(INPCK|ISTRIP);
+        tty.c_iflag &= ~(IXON | IXOFF);
+        tty.c_iflag |= IXANY;
 
         if (tcsetattr(fd, TCSANOW, &tty) != 0)
             return -1;

@@ -58,6 +58,17 @@ int main(int argc, char ** argv){
                 }
 
                 sleep(1); 
+
+                printf("Sending frame...\n");
+                clock_gettime(CLOCK_REALTIME, &tp);
+                nsec = -tp.tv_nsec;
+                char frame[1024];
+                reply = NULL;
+                r = flux_cli_send(client, ids[i], "FRAME", frame, 340 * 3, &reply);
+                clock_gettime(CLOCK_REALTIME, &tp);
+                nsec += tp.tv_nsec;
+                printf("frame response time: %ld nanoseconds\n", nsec);
+                sleep(1); 
             }
             free(ids);
         }else{

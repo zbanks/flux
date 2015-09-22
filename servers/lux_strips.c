@@ -22,8 +22,8 @@ struct device {
 
 #define N_LUX_IDS 4
 static int n_lux_ids = N_LUX_IDS;
-static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0x8};
-static int lux_default_lengths[N_LUX_IDS] = {60, 60, 60, 60}; // For write-only mode
+static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0xFFFFFFFF};
+static int lux_default_lengths[N_LUX_IDS] = {60, 50, 60, 340}; // For write-only mode
 
 static struct device devices[N_LUX_IDS];
 static int write_only = 0;
@@ -33,13 +33,13 @@ int dummy_request(void * args, const flux_cmd_t cmd, char * body, size_t body_si
     UNUSED(args);
     int reply_size = -1;
 
-    if(memcmp(cmd, "PING", 4) == 0){
+    if(strncmp(cmd, "PING", 12) == 0){
         *reply = "PONG";
         reply_size = 4;
-    }else if(memcmp(cmd, "ECHO", 4) == 0){
+    }else if(strncmp(cmd, "ECHO", 12) == 0){
         *reply = body;
         reply_size = body_size;
-    }else if(memcmp(cmd, "LENGTH?", 4) == 0){
+    }else if(strncmp(cmd, "LENGTH?", 12) == 0){
         *reply = "999";
         reply_size = 4;
     }else{
@@ -51,6 +51,7 @@ int dummy_request(void * args, const flux_cmd_t cmd, char * body, size_t body_si
 }
 
 int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size, char ** reply){
+
     struct device * device = (struct device *) args;
     int rc = -1;
 

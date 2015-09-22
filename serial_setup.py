@@ -2,7 +2,7 @@ import serial
 
 # Setting up serial ports for 3 megabaud in C is hard...
 
-port_format = "/dev/ttyUSB%d" 
+port_format = "/dev/ttyACM%d" 
 baud = 3000000
 found = 0
 

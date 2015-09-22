@@ -6,6 +6,7 @@
 typedef char flux_id_t[16];
 typedef char flux_cmd_t[16];
 
+
 // --- Server ---
 struct _flux_dev;
 typedef struct _flux_dev flux_dev_t;
@@ -29,7 +30,11 @@ flux_cli_t * flux_cli_init(const char * broker_url, int timeout, int verbose);
 void flux_cli_del(flux_cli_t * client);
 int flux_cli_send(flux_cli_t * client, const flux_id_t dest, const flux_cmd_t cmd, const char * body, size_t body_size, char ** reply); // Free reply afterwards
 
-int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids); // Remember to free ids afterwards
 //int flux_cli_id_check(flux_cli_t * client, const char * prefix);
+int flux_cli_id_list(flux_cli_t * client, flux_id_t ** ids); // Remember to free ids afterwards
+
+// Free `reply` from `flux_cli_send` and `ids` from `flux_cli_id_list`
+void flux_buffer_del(void * buff);
+
 
 #endif
