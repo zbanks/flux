@@ -20,10 +20,10 @@ struct device {
 #define DEFAULT_BROKER_URL "tcp://*:1366"
 #define DEFAULT_SERVER_URL "tcp://*:1368"
 
-#define N_LUX_IDS 4
+#define N_LUX_IDS 5
 static int n_lux_ids = N_LUX_IDS;
-static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x4, 0xFFFFFFFF};
-static int lux_default_lengths[N_LUX_IDS] = {60, 50, 60, 340}; // For write-only mode
+static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x3, 0x4, 0x5};
+static int lux_default_lengths[N_LUX_IDS] = {140, 140, 140}; // For write-only mode
 
 static struct device devices[N_LUX_IDS];
 static int write_only = 0;
