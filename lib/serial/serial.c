@@ -12,8 +12,6 @@
 #include "lib/crc/crc.h"
 #include "lib/serial/serial.h"
 
-static crc_t crc;
-
 static int serial_set_attribs(int fd)
 {
         struct termios tty;
@@ -80,7 +78,7 @@ void serial_close(int fd)
     close(fd);
 }
 
-int cobs_encode(unsigned char* in_buf, int n, unsigned char* out_buf)
+static int cobs_encode(unsigned char* in_buf, int n, unsigned char* out_buf)
 {
     int out_ptr = 0;
     unsigned char ctr = 1;
@@ -109,7 +107,7 @@ int cobs_encode(unsigned char* in_buf, int n, unsigned char* out_buf)
     return out_ptr; // success
 }
 
-int cobs_decode(unsigned char* in_buf, int n, unsigned char* out_buf)
+static int cobs_decode(unsigned char* in_buf, int n, unsigned char* out_buf)
 {
     int out_ptr = 0;
     unsigned char total = 255;
@@ -139,7 +137,7 @@ int cobs_decode(unsigned char* in_buf, int n, unsigned char* out_buf)
     return out_ptr - 1; // success
 }
 
-int frame(uint32_t destination, char* data, int len, char* result)
+static int frame(uint32_t destination, char* data, int len, char* result)
 {
     static char* tmp[2048];
     int n;
@@ -156,7 +154,7 @@ int frame(uint32_t destination, char* data, int len, char* result)
     return n + 1; // success
 }
 
-int unframe(char* packet, int n, uint32_t* destination, char* data)
+static int unframe(char* packet, int n, uint32_t* destination, char* data)
 {
     static char* tmp[2048];
     int len;
@@ -175,7 +173,7 @@ int unframe(char* packet, int n, uint32_t* destination, char* data)
     return len - 8; // success
 }
 
-int lowlevel_read(int fd, char* data)
+static int lowlevel_read(int fd, char* data)
 {
     static char* rx_buf[2048];
     int rx_ptr = 0;
@@ -207,7 +205,7 @@ int lowlevel_read(int fd, char* data)
     }
 }
 
-int lowlevel_write(int fd, char* data, int n)
+static int lowlevel_write(int fd, char* data, int n)
 {
     static char* tx_buf[2048];
     int tx_ptr = 0;
@@ -231,7 +229,7 @@ int lowlevel_write(int fd, char* data, int n)
     }
 }
 
-int clear_rx(int fd)
+static int clear_rx(int fd)
 {
     static char* rx_buf[2048];
     int n;

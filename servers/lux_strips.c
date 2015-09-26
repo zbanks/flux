@@ -89,43 +89,37 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
     return rc;
 }
 
-static void enumerate_devices(ser_t * serial){
-    for(int i = 0; i < n_lux_ids; i++){
-        if(serial->write_only){
-            devices[i].bus = serial;
-            devices[i].length = lux_default_lengths[i];
-            snprintf(devices[i].length_str, 4, "%d", devices[i].length);
-        }else{
-            struct lux_frame cmd;
-            struct lux_frame resp;
-            char r;
+static void enumerate_devices(int fd)
+{
+    static char[1024] cmd;
+    static char[1024] resp;
 
-            cmd.data.raw[0] = CMD_GET_ID;
-            cmd.destination = devices[i].id;
-            cmd.length = 1;
+    for(int i = 0; i < n_lux_ids; i++)
+    {
+        char r;
 
-            if((r = lux_command_response(serial, &cmd, &resp, 40))) goto sfail;
+        if((r = command(fd, devices[i].id, cmd, 0, &resp)) < 0) goto sfail;
+        resp[r] = 0;
 
-            printf("Found light strip %d @0x%08x: '%s'\n", i, cmd.destination, resp.data.raw);
-            strncpy(devices[i].id_str, (char *) resp.data.raw, 255);
-            //zhash_update(devices[i].info, "id", devices[i].id_str);
-            devices[i].bus = serial;
+        printf("Found light strip %d @0x%08x: '%s'\n", i, devices[i].id, resp);
+        strncpy(devices[i].id_str, (char *) resp, 255);
+        //zhash_update(devices[i].info, "id", devices[i].id_str);
+        devices[i].bus = fd;
 
-            cmd.data.raw[0] = CMD_GET_LENGTH;
-            if((r = lux_command_response(serial, &cmd, &resp, 40))) goto sfail;
+        cmd[0] = CMD_GET_LENGTH;
+        if((r = command(fd, devices[i].id, cmd, 1, &resp)) < 0) goto sfail;
 
-            printf("length: %d\n", resp.data.ssingle_r.data);
-            devices[i].length = resp.data.ssingle_r.data;
-            snprintf(devices[i].length_str, 4, "%d", resp.data.ssingle_r.data);
-            //zhash_update(devices[i].info, "length", devices[i].length_str);
-            devices[i].bus = serial;
-            cmd.length = 1;
+        printf("length: %d\n", (uint32_t)resp);
+        devices[i].length = resp.data.ssingle_r.data;
+        snprintf(devices[i].length_str, 4, "%d", resp.data.ssingle_r.data);
+        //zhash_update(devices[i].info, "length", devices[i].length_str);
+        devices[i].bus = serial;
+        cmd.length = 1;
 
 sfail:
-            if(r){
-                printf("failed cmd: %d\n", r);
-                devices[i].bus = NULL;
-            }
+        if(r){
+            printf("failed cmd: %d\n", r);
+            devices[i].bus = NULL;
         }
 
         if(devices[i].bus && !devices[i].flux_dev){

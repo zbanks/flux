@@ -1,29 +1,12 @@
 #ifndef __SERIAL_H__
 #define __SERIAL_H__
 
-#include <termios.h>
-#include "lib/lux/inc/lux_hal.h"
-#include "lib/lux/inc/lux_wire.h"
+#include <stdint.h>
 
-typedef struct ser {
-    int fd;
-    int write_only;
-    size_t idx;
-    uint8_t buffer[4096];
-} ser_t;
+int serial_open();
+void serial_close(int fd);
 
-ser_t * serial_init(int write_only);
-void serial_close(ser_t * s);
-
-struct lux_frame {
-    uint32_t destination;
-    int length;
-    union lux_command_frame data;
-};
-
-char lux_tx_packet(ser_t * s, struct lux_frame *);
-char lux_rx_packet(ser_t * s, struct lux_frame *, int timeout_ms);
-char lux_command_ack(ser_t * s, struct lux_frame *cmd, int timeout_ms);
-char lux_command_response(ser_t * s, struct lux_frame *cmd, struct lux_frame *response, int timeout_ms);
+int write(int fd, uint32_t destination, char* data, int len, int retry);
+int command(int fd, uint32_t destination, char* data, int len, char* response, int retry);
 
 #endif
