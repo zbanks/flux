@@ -114,6 +114,16 @@ static int cobs_decode(char* in_buf, int n, char* out_buf)
     int out_ptr = 0;
     unsigned char total = 255;
     unsigned char ctr = 255;
+
+    // printf("Attempting to decode: ");
+    // for(int i = 0; i < n; i++)
+    // {
+    //     unsigned char a = in_buf[i];
+    //     printf("%#02x ", a);
+    // }
+    // printf("\n");
+    // printf("Attempting to encode: ");
+
     for(int i = 0; i < n; i++)
     {
         if(in_buf[i] == 0)
@@ -138,7 +148,7 @@ static int cobs_decode(char* in_buf, int n, char* out_buf)
         }
     }
 
-    if(out_buf[out_ptr - 1] != 0)
+    if(ctr != total)
     {
         ERROR("Generic decode error");
         return -2;
@@ -185,16 +195,10 @@ static int unframe(char* packet, int n, uint32_t* destination, char* data)
         return -2;
     }
 
-    for (int i = 0; i < len; i++ ) {
-        printf("0x%02X ", tmp[i]);
-    }
-printf("\n\n");
-    
     crc_t crc = crc_init();
-    crc = crc_update(crc, tmp, n);
+    crc = crc_update(crc, tmp, len);
     crc = crc_finalize(crc);
-    //if(crc != 0x2144DF1C)
-    if(crc != 0xC622F71D)
+    if(crc != 0x2144DF1C)
     {
         ERROR("Bad CRC 0x%lX", crc);
         return -3; // bad CRC
@@ -202,11 +206,6 @@ printf("\n\n");
 
     memcpy(destination, &tmp[0], 4);
     memcpy(data, &tmp[4], len - 4);
-
-    for (int i = 0; i < len - 8; i++ ) {
-        printf("0x%02X ", data[i]);
-    }
-printf("\n\n");
 
     return len - 8; // success
 }
@@ -308,14 +307,6 @@ static int lux_read(int fd, uint32_t* destination, char* data)
         ERROR("Read error");
         return -1;
     }
-
-    printf("Raw read: ");
-    for(int i = 0; i < r; i++)
-    {
-        unsigned char a = rx_buf[i];
-        printf("%#02x ", a);
-    }
-    printf("\n");
 
     r = unframe(rx_buf, r, destination, data);
     if(r < 0)
