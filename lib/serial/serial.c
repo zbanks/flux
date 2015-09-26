@@ -4,14 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/select.h>
 
 #include "lib/err.h"
 #include "lib/crc/crc.h"
 #include "lib/serial/serial.h"
 
+/*
 static int serial_set_attribs(int fd)
 {
         struct termios tty;
@@ -38,6 +39,7 @@ static int serial_set_attribs(int fd)
 
         return 0;
 }
+*/
 
 int serial_open()
 {
@@ -71,7 +73,7 @@ int serial_open()
 
     if(fd < 0) return -1;
 
-    if(serial_set_attribs(fd) < 0) return -2;
+    //if(serial_set_attribs(fd) < 0) return -2;
 
     return fd;
 }
@@ -185,19 +187,31 @@ static int unframe(char* packet, int n, uint32_t* destination, char* data)
         ERROR("Short packet");
         return -2;
     }
+
+    for (int i = 0; i < len; i++ ) {
+        printf("0x%02X ", tmp[i]);
+    }
+printf("\n\n");
     
     crc_t crc = crc_init();
     crc = crc_update(crc, tmp, n);
     crc = crc_finalize(crc);
-    if(crc != 0x2144DF1C)
+    //if(crc != 0x2144DF1C)
+    if(crc != 0x349EF255)
     {
-        ERROR("Bad CRC");
+        ERROR("Bad CRC 0x%lX", crc);
         return -3; // bad CRC
     }
 
     memcpy(destination, &tmp[0], 4);
-    memcpy(data, &tmp[4], len - 8);
-    return len - 8; // success
+    memcpy(data, &tmp[4], len - 4);
+
+    for (int i = 0; i < len - 6; i++ ) {
+        printf("0x%02X ", data[i]);
+    }
+printf("\n\n");
+
+    return len - 6; // success
 }
 
 static int lowlevel_read(int fd, char* data)
@@ -208,12 +222,12 @@ static int lowlevel_read(int fd, char* data)
     fd_set rfds;
     int n;
     int r;
-    FD_ZERO(&rfds);
-    FD_SET(fd, &rfds);
 
     for(;;)
     {
-        r = select(1, &rfds, NULL, NULL, (struct timeval*)&tv);
+        FD_ZERO(&rfds);
+        FD_SET(fd, &rfds);
+        r = select(fd + 1, &rfds, NULL, NULL, (struct timeval*)&tv);
         if(r < 0)
         {
             ERROR("select() error");
@@ -262,7 +276,10 @@ static int lowlevel_write(int fd, char* data, int n)
     for(;;)
     {
         printf("select(%d)\n", fd);
-        r = select(1, NULL, &wfds, NULL, (struct timeval*)&tv);
+        FD_ZERO(&wfds);
+        FD_SET(fd, &wfds);
+        r = select(fd + 1, NULL, &wfds, NULL, (struct timeval*)&tv);
+        printf("select over\n");
         if(r < 0)
         {
             ERROR("select() error");
@@ -274,6 +291,8 @@ static int lowlevel_write(int fd, char* data, int n)
             return -2;
         }
         n_written = write(fd, &tx_buf[tx_ptr], n + 1 - tx_ptr);
+        //fputs(stderr, &tx_buf[tx_ptr], n_written);
+        printf("wrote %d\n", n_written);
         if(n_written < 0)
         {
             ERROR("Read error");
@@ -300,7 +319,7 @@ static int lux_read(int fd, uint32_t* destination, char* data)
         ERROR("Failed to unframe packet");
         return -2;
     }
-    return 0;
+    return r;
 }
 
 static int clear_rx(int fd)
