@@ -19,8 +19,8 @@ static int serial_set_attribs(int fd)
         memset (&tty, 0, sizeof tty);
         
         tcgetattr(fd, &tty);
-        //cfsetispeed(&tty, speed ? speed : 0010015);
-        //cfsetospeed(&tty, speed ? speed : 0010015);
+        cfsetispeed(&tty, 0010015);
+        cfsetospeed(&tty, 0010015);
 
         //ioctl(3, SNDCTL_TMR_TIMEBASE or SNDRV_TIMER_IOCTL_NEXT_DEVICE or TCGETS, {c_iflags=0, c_oflags=0x4, c_cflags=0x1cbd, c_lflags=0, c_line=0, c_cc[VMIN]=1, c_cc[VTIME]=2, c_cc="\x03\x1c\x7f\x15\x04\x02\x01\x00\x11\x13\x1a\x00\x12\x0f\x17\x16\x00\x00\x00"}) = 0
 
@@ -254,8 +254,6 @@ static int lowlevel_read(int fd, char* data)
         }
     }
 }
-
-static int zeros[1024 * 1024];
 
 static int lowlevel_write(int fd, char* data, int n)
 {
