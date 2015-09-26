@@ -115,13 +115,14 @@ static void enumerate_devices(int fd)
         cmd[0] = CMD_GET_LENGTH;
         if((r = lux_command(fd, devices[i].id, cmd, 1, resp, 3)) < 0) goto sfail;
 
-        uint32_t resp_length;
+        uint16_t resp_length;
         memcpy(&resp_length, resp, sizeof(resp_length));
         printf("length: %d\n", resp_length);
         devices[i].length = resp_length;
         snprintf(devices[i].length_str, 4, "%d", resp_length);
         //zhash_update(devices[i].info, "length", devices[i].length_str);
         devices[i].bus_fd = fd;
+        r = 0;
 
 sfail:
         if(r){
