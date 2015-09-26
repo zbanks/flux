@@ -1,5 +1,6 @@
 #include "lib/err.h"
 #include "lib/serial/serial.h"
+#include "lib/lux/inc/lux_wire.h"
 
 #include <flux.h>
 #include <string.h>
@@ -10,11 +11,17 @@ struct device {
     int id;
     flux_id_t name;
     flux_dev_t * flux_dev;
-    ser_t * bus;
+    int bus_fd;
     unsigned int length;
     //zhash_t * info;
     char length_str[5];
     char id_str[256];
+};
+
+struct lux_frame {
+    uint32_t destination;
+    int length;
+    union lux_command_frame data;
 };
 
 #define DEFAULT_BROKER_URL "tcp://*:1366"
@@ -23,7 +30,7 @@ struct device {
 #define N_LUX_IDS 5
 static int n_lux_ids = N_LUX_IDS;
 static uint32_t lux_ids[N_LUX_IDS] = {0x1, 0x2, 0x3, 0x4, 0x5};
-static int lux_default_lengths[N_LUX_IDS] = {140, 140, 140}; // For write-only mode
+//static int lux_default_lengths[N_LUX_IDS] = {140, 140, 140}; // For write-only mode
 
 static struct device devices[N_LUX_IDS];
 static int write_only = 0;
@@ -70,13 +77,12 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
             *reply = "OK";
             rc = 2;
 
-            struct lux_frame lf;
-            memcpy(lf.data.carray.data, body, device->length * 3);
+            char frame[2048];
+            size_t frame_len = device->length * 3 + 1;
+            memcpy(frame+1, body, device->length * 3);
+            frame[0] = CMD_FRAME;
 
-            lf.data.carray.cmd = CMD_FRAME;
-            lf.destination = device->id;
-            lf.length = (device->length * 3) + 1;
-            if(lux_tx_packet(device->bus, &lf))
+            if(write(device->bus_fd, device->id, frame, frame_len, 3))
                 rc = -1;
         }else{
             *reply = "BadSize";
@@ -91,41 +97,42 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
 
 static void enumerate_devices(int fd)
 {
-    static char[1024] cmd;
-    static char[1024] resp;
+    static char cmd[1024];
+    static char resp[1024];
 
     for(int i = 0; i < n_lux_ids; i++)
     {
-        char r;
+        int r;
 
-        if((r = command(fd, devices[i].id, cmd, 0, &resp)) < 0) goto sfail;
+        if((r = command(fd, devices[i].id, cmd, 0, resp, 3)) < 0) goto sfail;
         resp[r] = 0;
 
         printf("Found light strip %d @0x%08x: '%s'\n", i, devices[i].id, resp);
         strncpy(devices[i].id_str, (char *) resp, 255);
         //zhash_update(devices[i].info, "id", devices[i].id_str);
-        devices[i].bus = fd;
+        devices[i].bus_fd = fd;
 
         cmd[0] = CMD_GET_LENGTH;
-        if((r = command(fd, devices[i].id, cmd, 1, &resp)) < 0) goto sfail;
+        if((r = command(fd, devices[i].id, cmd, 1, resp, 3)) < 0) goto sfail;
 
-        printf("length: %d\n", (uint32_t)resp);
-        devices[i].length = resp.data.ssingle_r.data;
-        snprintf(devices[i].length_str, 4, "%d", resp.data.ssingle_r.data);
+        uint32_t resp_length;
+        memcpy(&resp_length, resp, sizeof(resp_length));
+        printf("length: %d\n", resp_length);
+        devices[i].length = resp_length;
+        snprintf(devices[i].length_str, 4, "%d", resp_length);
         //zhash_update(devices[i].info, "length", devices[i].length_str);
-        devices[i].bus = serial;
-        cmd.length = 1;
+        devices[i].bus_fd = fd;
 
 sfail:
         if(r){
             printf("failed cmd: %d\n", r);
-            devices[i].bus = NULL;
+            devices[i].bus_fd = -1;
         }
 
-        if(devices[i].bus && !devices[i].flux_dev){
+        if(devices[i].bus_fd >= 0 && !devices[i].flux_dev){
             printf("Adding device: %s\n", devices[i].name);
             devices[i].flux_dev = flux_dev_init(devices[i].name, &lux_request, (void *) &devices[i]);
-        }else if(!devices[i].bus && devices[i].flux_dev){
+        }else if(devices[i].bus_fd < 0 && devices[i].flux_dev){
             flux_dev_del(devices[i].flux_dev);
             devices[i].flux_dev = 0;
         }
@@ -147,7 +154,7 @@ static void print_help(){
 int main(int argc, char ** argv){
     char * dummy_name = NULL;
     flux_dev_t * dummy_dev = NULL;
-    ser_t * serial = NULL;
+    int serial_fd = -1;
     char * broker_url = DEFAULT_BROKER_URL;
     char * server_url = DEFAULT_SERVER_URL;
 
@@ -189,24 +196,24 @@ int main(int argc, char ** argv){
     }
 
 
-    serial = serial_init(write_only);
-    if(!serial) fprintf(stderr, "Unable to initialize serial port.\n");
+    serial_fd = serial_open();
+    if(serial_fd < 0) fprintf(stderr, "Unable to initialize serial port.\n");
 
     for(int i = 0; i < n_lux_ids; i++){
         snprintf(devices[i].name, 15, "lux:%08X", lux_ids[i]);
         devices[i].id = lux_ids[i];
-        devices[i].bus = NULL;
+        devices[i].bus_fd = -1;
         //devices[i].info = zhash_new();
     }
 
     if(flux_server_init(broker_url, server_url, 1000, verbose)) FAIL("Unable to intialize flux server.\n");
 
     if(dummy_name) dummy_dev = flux_dev_init(dummy_name, &dummy_request, NULL);
-    if(!serial && !dummy_dev) FAIL("No devices to broadcast; exiting.\n");
+    if(serial_fd < 0 && !dummy_dev) FAIL("No devices to broadcast; exiting.\n");
 
     int rc = 0;
     while(!rc){
-        if(serial) enumerate_devices(serial);
+        if(serial_fd >= 0) enumerate_devices(serial_fd);
         for(int i = 0; i < 1000; i++){
             if(flux_server_poll() < 0){
                 rc = -1;
@@ -216,7 +223,7 @@ int main(int argc, char ** argv){
     }
 
     // Teardown
-    if(serial) serial_close(serial);
+    if(serial_fd) serial_close(serial_fd);
 
     flux_server_close();
 
