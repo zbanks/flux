@@ -82,7 +82,7 @@ int lux_request(void * args, const flux_cmd_t cmd, char * body, size_t body_size
             memcpy(frame+1, body, device->length * 3);
             frame[0] = CMD_FRAME;
 
-            if(write(device->bus_fd, device->id, frame, frame_len, 3))
+            if(lux_write(device->bus_fd, device->id, frame, frame_len))
                 rc = -1;
         }else{
             *reply = "BadSize";
@@ -104,7 +104,7 @@ static void enumerate_devices(int fd)
     {
         int r;
 
-        if((r = command(fd, devices[i].id, cmd, 0, resp, 3)) < 0) goto sfail;
+        if((r = lux_command(fd, devices[i].id, cmd, 0, resp, 3)) < 0) goto sfail;
         resp[r] = 0;
 
         printf("Found light strip %d @0x%08x: '%s'\n", i, devices[i].id, resp);
@@ -113,7 +113,7 @@ static void enumerate_devices(int fd)
         devices[i].bus_fd = fd;
 
         cmd[0] = CMD_GET_LENGTH;
-        if((r = command(fd, devices[i].id, cmd, 1, resp, 3)) < 0) goto sfail;
+        if((r = lux_command(fd, devices[i].id, cmd, 1, resp, 3)) < 0) goto sfail;
 
         uint32_t resp_length;
         memcpy(&resp_length, resp, sizeof(resp_length));

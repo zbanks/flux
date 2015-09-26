@@ -50,18 +50,21 @@ int serial_open()
     int fd;
 
     char dbuf[32];
-    for(int i = 0; i < 9; i++){
+    for(int i = 0; i < 9; i++)
+    {
         sprintf(dbuf, "/dev/ttyUSB%d", i);
         fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
-        if(fd >= 0){
-            printf("Found output on '%s', %d\n", dbuf, port.fd);
+        if(fd >= 0)
+        {
+            printf("Found output on '%s', %d\n", dbuf, fd);
             break;
         }
 
         sprintf(dbuf, "/dev/ttyACM%d", i);
         fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
-        if(fd >= 0){
-            printf("Found output on '%s', %d\n", dbuf, port.fd);
+        if(fd >= 0)
+        {
+            printf("Found output on '%s', %d\n", dbuf, fd);
             break;
         }
     }
@@ -78,7 +81,7 @@ void serial_close(int fd)
     close(fd);
 }
 
-static int cobs_encode(unsigned char* in_buf, int n, unsigned char* out_buf)
+static int cobs_encode(char* in_buf, int n, char* out_buf)
 {
     int out_ptr = 0;
     unsigned char ctr = 1;
@@ -107,14 +110,18 @@ static int cobs_encode(unsigned char* in_buf, int n, unsigned char* out_buf)
     return out_ptr; // success
 }
 
-static int cobs_decode(unsigned char* in_buf, int n, unsigned char* out_buf)
+static int cobs_decode(char* in_buf, int n, char* out_buf)
 {
     int out_ptr = 0;
     unsigned char total = 255;
     unsigned char ctr = 255;
     for(int i = 0; i < n; i++)
     {
-        if(in_buf[i] == 0) return -1; // invalid character
+        if(in_buf[i] == 0)
+        {
+            ERROR("Invalid character");
+            return -1;
+        }
 
         if(ctr == total)
         {
@@ -132,41 +139,61 @@ static int cobs_decode(unsigned char* in_buf, int n, unsigned char* out_buf)
         }
     }
 
-    if(out_buf[out_ptr] != 0) return -2; // generic decode error
+    if(out_buf[out_ptr] != 0)
+    {
+        ERROR("Generic decode error");
+        return -2;
+    }
 
     return out_ptr - 1; // success
 }
 
 static int frame(uint32_t destination, char* data, int len, char* result)
 {
-    static char* tmp[2048];
+    static char tmp[2048];
     int n;
 
     memcpy(&tmp[0], &destination, 4);
     memcpy(&tmp[4], data, len);
     crc_t crc = crc_init();
     crc = crc_update(crc, tmp, len + 4);
-    crc = crc_finalize();
+    crc = crc_finalize(crc);
     memcpy(&tmp[len + 4], &crc, 4);
     n = cobs_encode(tmp, len + 8, result);
-    if(n < 0) return -1; // encode error
+    if(n < 0)
+    {
+        ERROR("Encode error");
+        return -1;
+    }
     result[n] = 0;
     return n + 1; // success
 }
 
 static int unframe(char* packet, int n, uint32_t* destination, char* data)
 {
-    static char* tmp[2048];
+    static char tmp[2048];
     int len;
 
     len = cobs_decode(packet, n, tmp);
-    if(len < 0) return -1; // decode error
-    if(len < 8) return -2; // short packet
+    if(len < 0)
+    {
+        ERROR("Decode error");
+        return -1;
+    }
+    if(len < 8)
+    {
+        ERROR("Short packet");
+        return -2;
+    }
     
     crc_t crc = crc_init();
     crc = crc_update(crc, tmp, n);
-    crc = crc_finalize();
-    if(crc != 0x2144DF1C) return -3; // bad CRC
+    crc = crc_finalize(crc);
+    if(crc != 0x2144DF1C)
+    {
+        ERROR("Bad CRC");
+        return -3; // bad CRC
+    }
 
     memcpy(destination, &tmp[0], 4);
     memcpy(data, &tmp[4], len - 8);
@@ -175,19 +202,28 @@ static int unframe(char* packet, int n, uint32_t* destination, char* data)
 
 static int lowlevel_read(int fd, char* data)
 {
-    static char* rx_buf[2048];
+    static char rx_buf[2048];
     int rx_ptr = 0;
-    const struct timeval tv = {0, 10000};
+    const struct timeval tv = {0, 100000};
     fd_set rfds;
     int n;
+    int r;
     FD_ZERO(&rfds);
     FD_SET(fd, &rfds);
 
     for(;;)
     {
-        r = select(1, &rfds, NULL, NULL, &tv);
-        if(r < 0) return -1; // select error
-        if(r == 0) return -2; // timeout
+        r = select(1, &rfds, NULL, NULL, (struct timeval*)&tv);
+        if(r < 0)
+        {
+            ERROR("select() error");
+            return -1;
+        }
+        if(r == 0)
+        {
+            ERROR("Read timeout");
+            return -2;
+        }
         n = read(fd, &rx_buf[rx_ptr], 2048 - rx_ptr);
         if(n < 0) return -3; // read error
 
@@ -201,15 +237,21 @@ static int lowlevel_read(int fd, char* data)
         }
 
         rx_ptr += n;
-        if(rx_ptr == 2048) return -4; // buffer full
+        if(rx_ptr == 2048)
+        {
+            ERROR("Buffer full");
+            return -4; // buffer full
+        }
     }
 }
 
 static int lowlevel_write(int fd, char* data, int n)
 {
-    static char* tx_buf[2048];
+    static char tx_buf[2048];
     int tx_ptr = 0;
-    const struct timeval tv = {0, 10000};
+    int n_written;
+    int r;
+    const struct timeval tv = {0, 100000};
     fd_set wfds;
     FD_ZERO(&wfds);
     FD_SET(fd, &wfds);
@@ -219,69 +261,107 @@ static int lowlevel_write(int fd, char* data, int n)
 
     for(;;)
     {
-        r = select(1, NULL, &wfds, NULL, &tv);
-        if(r < 0) return -1; // select error
-        if(r == 0) return -2; // timeout
+        printf("select(%d)\n", fd);
+        r = select(1, NULL, &wfds, NULL, (struct timeval*)&tv);
+        if(r < 0)
+        {
+            ERROR("select() error");
+            return -1;
+        }
+        if(r == 0)
+        {
+            ERROR("Write timeout");
+            return -2;
+        }
         n_written = write(fd, &tx_buf[tx_ptr], n + 1 - tx_ptr);
-        if(n_written < 0) return -3; // read error
+        if(n_written < 0)
+        {
+            ERROR("Read error");
+            return -3;
+        }
         tx_ptr += n_written;
         if(tx_ptr == n + 1) return 0; // Success
     }
 }
 
-static int read(int fd, uint32_t* destination, char* data)
+static int lux_read(int fd, uint32_t* destination, char* data)
 {
-    static char* rx_buf[2048];
+    static char rx_buf[2048];
     int r;
     r = lowlevel_read(fd, rx_buf);
-    if(r < 0) return -1; // Read error
+    if(r < 0)
+    {
+        ERROR("Read error");
+        return -1;
+    }
     r = unframe(rx_buf, r, destination, data);
-    if(r < 0) return -2; // Unframe error
+    if(r < 0)
+    {
+        ERROR("Failed to unframe packet");
+        return -2;
+    }
     return 0;
 }
 
 static int clear_rx(int fd)
 {
-    static char* rx_buf[2048];
+    static char rx_buf[2048];
     int n;
     do
     {
         n = read(fd, rx_buf, 2048);
         if(n == EAGAIN) return 0; // Nothing to read, success
-        if(n < 0) return -1; // Read error
+        if(n < 0)
+        {
+            ERROR("Read error");
+            return -1;
+        }
     } while(n);
 
     return 0; // Successfully flushed
 }
 
-int write(int fd, uint32_t destination, char* data, int len)
+int lux_write(int fd, uint32_t destination, char* data, int len)
 {
     int r;
-    static char* tx_buf[2048];
+    static char tx_buf[2048];
 
     r = clear_rx(fd);
-    if(r < 0) return -1; // Failed to clear
+    if(r < 0)
+    {
+        ERROR("Failed to clear RX buffer");
+        return -1;
+    }
     r = frame(destination, data, len, tx_buf);
-    if(r < 0) return -2; // Failed to frame
+    if(r < 0)
+    {
+        ERROR("Failed to frame packet");
+        return -2;
+    }
     r = lowlevel_write(fd, tx_buf, r);
-    if(r < 0) return -3; // Failed to send
+    if(r < 0)
+    {
+        ERROR("Failed to unframe packet");
+        return -3;
+    }
     return 0; // Success
 }
 
-int command(int fd, uint32_t destination, char* data, int len, char* response, int retry)
+int lux_command(int fd, uint32_t destination, char* data, int len, char* response, int retry)
 {
     int r;
     uint32_t rx_destination;
 
     for(int i = 0; i < retry; i++)
     {
-        r = write(fd, destination, data, len);
+        r = lux_write(fd, destination, data, len);
         if(r < 0) continue;
-        r = read(fd, rx_destination, response);
+        r = lux_read(fd, &rx_destination, response);
         if(r < 0) continue;
         if(rx_destination != 0) continue;
         return r; // Success
     }
-    return -1; // Error
+    ERROR("Retry count exceeded");
+    return -1;
 }
 
