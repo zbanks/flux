@@ -229,6 +229,17 @@ static int lowlevel_write(int fd, char* data, int n)
     }
 }
 
+static int read(int fd, uint32_t* destination, char* data)
+{
+    static char* rx_buf[2048];
+    int r;
+    r = lowlevel_read(fd, rx_buf);
+    if(r < 0) return -1; // Read error
+    r = unframe(rx_buf, r, destination, data);
+    if(r < 0) return -2; // Unframe error
+    return 0;
+}
+
 static int clear_rx(int fd)
 {
     static char* rx_buf[2048];
@@ -243,13 +254,34 @@ static int clear_rx(int fd)
     return 0; // Successfully flushed
 }
 
-int write(int fd, uint32_t destination, char* data, int len, int retry)
+int write(int fd, uint32_t destination, char* data, int len)
 {
-    return -1; // Not implemented
+    int r;
+    static char* tx_buf[2048];
+
+    r = clear_rx(fd);
+    if(r < 0) return -1; // Failed to clear
+    r = frame(destination, data, len, tx_buf);
+    if(r < 0) return -2; // Failed to frame
+    r = lowlevel_write(fd, tx_buf, r);
+    if(r < 0) return -3; // Failed to send
+    return 0; // Success
 }
 
 int command(int fd, uint32_t destination, char* data, int len, char* response, int retry)
 {
-    return -1; // Not implemented
+    int r;
+    uint32_t rx_destination;
+
+    for(int i = 0; i < retry; i++)
+    {
+        r = write(fd, destination, data, len);
+        if(r < 0) continue;
+        r = read(fd, rx_destination, response);
+        if(r < 0) continue;
+        if(rx_destination != 0) continue;
+        return r; // Success
+    }
+    return -1; // Error
 }
 
