@@ -12,7 +12,6 @@
 #include "lib/crc/crc.h"
 #include "lib/serial/serial.h"
 
-/*
 static int serial_set_attribs(int fd)
 {
         struct termios tty;
@@ -34,12 +33,10 @@ static int serial_set_attribs(int fd)
         tty.c_iflag &= ~(IXON | IXOFF);
         tty.c_iflag |= IXANY;
 
-        if (tcsetattr(fd, TCSANOW, &tty) != 0)
-            return -1;
+        if (tcsetattr(fd, TCSANOW, &tty) != 0) return -1;
 
         return 0;
 }
-*/
 
 int serial_open()
 {
@@ -73,7 +70,7 @@ int serial_open()
 
     if(fd < 0) return -1;
 
-    //if(serial_set_attribs(fd) < 0) return -2;
+    if(serial_set_attribs(fd) < 0) return -2;
 
     return fd;
 }
@@ -141,13 +138,13 @@ static int cobs_decode(char* in_buf, int n, char* out_buf)
         }
     }
 
-    if(out_buf[out_ptr] != 0)
+    if(out_buf[out_ptr - 1] != 0)
     {
         ERROR("Generic decode error");
         return -2;
     }
 
-    return out_ptr - 1; // success
+    return out_ptr; // success
 }
 
 static int frame(uint32_t destination, char* data, int len, char* result)
@@ -197,7 +194,7 @@ printf("\n\n");
     crc = crc_update(crc, tmp, n);
     crc = crc_finalize(crc);
     //if(crc != 0x2144DF1C)
-    if(crc != 0x349EF255)
+    if(crc != 0xC622F71D)
     {
         ERROR("Bad CRC 0x%lX", crc);
         return -3; // bad CRC
@@ -206,12 +203,12 @@ printf("\n\n");
     memcpy(destination, &tmp[0], 4);
     memcpy(data, &tmp[4], len - 4);
 
-    for (int i = 0; i < len - 6; i++ ) {
+    for (int i = 0; i < len - 8; i++ ) {
         printf("0x%02X ", data[i]);
     }
 printf("\n\n");
 
-    return len - 6; // success
+    return len - 8; // success
 }
 
 static int lowlevel_read(int fd, char* data)
@@ -245,8 +242,8 @@ static int lowlevel_read(int fd, char* data)
         {
             if(rx_buf[rx_ptr + i] == 0)
             {
-                memcpy(data, rx_buf, rx_ptr + i - 1);
-                return rx_ptr + i - 1;
+                memcpy(data, rx_buf, rx_ptr + i);
+                return rx_ptr + i;
             }
         }
 
@@ -275,11 +272,9 @@ static int lowlevel_write(int fd, char* data, int n)
 
     for(;;)
     {
-        printf("select(%d)\n", fd);
         FD_ZERO(&wfds);
         FD_SET(fd, &wfds);
         r = select(fd + 1, NULL, &wfds, NULL, (struct timeval*)&tv);
-        printf("select over\n");
         if(r < 0)
         {
             ERROR("select() error");
@@ -313,6 +308,15 @@ static int lux_read(int fd, uint32_t* destination, char* data)
         ERROR("Read error");
         return -1;
     }
+
+    printf("Raw read: ");
+    for(int i = 0; i < r; i++)
+    {
+        unsigned char a = rx_buf[i];
+        printf("%#02x ", a);
+    }
+    printf("\n");
+
     r = unframe(rx_buf, r, destination, data);
     if(r < 0)
     {
