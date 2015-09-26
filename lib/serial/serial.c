@@ -255,6 +255,8 @@ static int lowlevel_read(int fd, char* data)
     }
 }
 
+static int zeros[1024 * 1024];
+
 static int lowlevel_write(int fd, char* data, int n)
 {
     static char tx_buf[2048];
@@ -286,7 +288,7 @@ static int lowlevel_write(int fd, char* data, int n)
         }
         n_written = write(fd, &tx_buf[tx_ptr], n + 1 - tx_ptr);
         //fputs(stderr, &tx_buf[tx_ptr], n_written);
-        printf("wrote %d\n", n_written);
+        //printf("wrote %d\n", n_written);
         if(n_written < 0)
         {
             ERROR("Read error");
@@ -295,6 +297,9 @@ static int lowlevel_write(int fd, char* data, int n)
         tx_ptr += n_written;
         if(tx_ptr == n + 1) return 0; // Success
     }
+    
+    tcflush(fd,TCIOFLUSH);
+//    write(fd, zeros, 1024 * 20);
 }
 
 static int lux_read(int fd, uint32_t* destination, char* data)
@@ -327,8 +332,9 @@ static int clear_rx(int fd)
         if(n == EAGAIN) return 0; // Nothing to read, success
         if(n < 0)
         {
-            ERROR("Read error");
-            return -1;
+            //ERROR("Read error %d", n);
+            //return -1;
+            break;
         }
     } while(n);
 
